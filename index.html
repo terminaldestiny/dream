@@ -38,7 +38,6 @@
     .hud-btn:hover { background: rgba(0,20,8,0.92); color: #00ff41cc; border-color: #00ff4155; }
     .hud-btn.active { background: rgba(0,40,15,0.92); color: #00ff41; border-color: #00ff4188;
       box-shadow: 0 0 8px rgba(0,255,65,0.18); }
-    #btn-speed { min-width: 80px; }
 
     /* ── CONTRACT ADDRESS ───────────────────────────────────────── */
     #ca-address {
@@ -318,6 +317,10 @@
       #boot { display: none !important; }
       /* Hide top title on mobile — HUD is enough */
       #header { display: none; }
+    }
+    @media (max-height: 500px) and (orientation: landscape) {
+      #header { display: none; }
+      #boot { display: none !important; }
 
       /* Agent status — smaller, tighter */
       #hud-agent { top: 8px; left: 8px; min-width: 0; padding: 7px 10px 7px 9px; }
@@ -387,7 +390,6 @@
 
 <!-- ── CONTROL BUTTONS (bottom-center) ────────────────────────── -->
 <div id="hud-controls">
-  <button class="hud-btn" id="btn-speed" onclick="cycleSpeed()" title="[1/2/Space]">▶ 1×</button>
   <button class="hud-btn" id="btn-follow" onclick="toggleFollowCam()" title="Agent View">◎ FREE</button>
   <button class="hud-btn" id="btn-journal" onclick="toggleJournal()">📋 JOURNAL</button>
   <button class="hud-btn" id="btn-reset" onclick="if(confirm('Reset world? All progress will be lost.'))_tdReset()">↺ RESET</button>
@@ -9487,25 +9489,8 @@ function setStatus(s){
   if(dResStatusEl) dResStatusEl.textContent=s;
 }
 
-// ── SPEED CONTROL ─────────────────────────────────────────────────────
-var _speeds=[1,2,3], _speedIdx=0, _gameSpeed=1;
-var _speedLabels=['▶ 1×','▶▶ 2×','▶▶▶ 3×'];
-var _btnSpeed=document.getElementById('btn-speed');
-function cycleSpeed(){
-  _speedIdx=(_speedIdx+1)%_speeds.length;
-  _gameSpeed=_speeds[_speedIdx];
-  if(_btnSpeed){ _btnSpeed.textContent=_speedLabels[_speedIdx];
-    _btnSpeed.classList.toggle('active',_speedIdx>0); }
-}
+var _gameSpeed=1;
 function getGameSpeed(){ return _gameSpeed; }
-// Keyboard shortcuts
-document.addEventListener('keydown',function(e){
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
-  if(e.code==='Digit1'){ _speedIdx=0; _gameSpeed=1; if(_btnSpeed){_btnSpeed.textContent=_speedLabels[0];_btnSpeed.classList.remove('active');} }
-  if(e.code==='Digit2'){ _speedIdx=1; _gameSpeed=2; if(_btnSpeed){_btnSpeed.textContent=_speedLabels[1];_btnSpeed.classList.add('active');} }
-  if(e.code==='Digit3'){ _speedIdx=2; _gameSpeed=3; if(_btnSpeed){_btnSpeed.textContent=_speedLabels[2];_btnSpeed.classList.add('active');} }
-  if(e.code==='Space'&&!isDungeonMode){ e.preventDefault(); cycleSpeed(); }
-});
 
 // ── FOLLOW-CAM ────────────────────────────────────────────────────────
 var _followCam=false;
