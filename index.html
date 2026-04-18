@@ -516,7 +516,7 @@ document.body.appendChild(renderer.domElement);
 // ── SCENE ────────────────────────────────────────────────────────────
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x060e0a);
-scene.fog = new THREE.Fog(0x060e0a, 80, 280);
+// fog removed
 
 // ── CAMERA — isometric angle ──────────────────────────────────────────
 var camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 700);
@@ -1365,7 +1365,6 @@ function updateDayNight(delta){
 
   var sky=_skyLerp(_dayPhase);
   scene.background.copy(_bgCol);
-  if(scene.fog){ scene.fog.color.copy(_fgCol); scene.fog.near=sky.fn; scene.fog.far=sky.ff; }
 
   // Sun / Moon orbital positions (orbit around Y axis at height ~65)
   var sunAngle=(_dayPhase-0.25)*Math.PI*2; // peaks at top at phase=0.5
@@ -1913,80 +1912,9 @@ function buildTheMonolith(ox,oz){
   }
 })();
 
-// ── FOG OF WAR ────────────────────────────────────────────────────────
-var FOG_CS=512;          // canvas pixels
-var FOG_WR=200;          // world units from center each direction
-var FOG_PPU=FOG_CS/(FOG_WR*2); // pixels per world unit
-var fogCanvas=document.createElement('canvas');
-fogCanvas.width=FOG_CS; fogCanvas.height=FOG_CS;
-var fogCtx=fogCanvas.getContext('2d');
-var fogTexture=new THREE.CanvasTexture(fogCanvas);
-
-function fogWorldToPx(wx,wz){
-  return {
-    x:Math.round((wx+FOG_WR)*FOG_PPU),
-    y:Math.round((wz+FOG_WR)*FOG_PPU)
-  };
-}
-
-// Reveal a circular area in world space. worldR = radius in world units.
-function revealFog(wx,wz,worldR){
-  var cp=fogWorldToPx(wx,wz);
-  var pr=Math.ceil(worldR*FOG_PPU);
-  // Soft gradient: black (revealed) at center fading to white (fog) at edge
-  // Using 'multiply' compositing ensures already-revealed areas stay revealed
-  var grd=fogCtx.createRadialGradient(cp.x,cp.y,0,cp.x,cp.y,pr);
-  grd.addColorStop(0,'#000000');
-  grd.addColorStop(0.60,'#000000');
-  grd.addColorStop(1.0,'#ffffff');
-  fogCtx.globalCompositeOperation='multiply';
-  fogCtx.fillStyle=grd;
-  fogCtx.beginPath(); fogCtx.arc(cp.x,cp.y,pr,0,Math.PI*2); fogCtx.fill();
-  fogCtx.globalCompositeOperation='source-over';
-  fogTexture.needsUpdate=true;
-}
-
-(function fogInit(){
-  // Start: entire world is fog (white = opaque in alphaMap)
-  fogCtx.fillStyle='#ffffff';
-  fogCtx.fillRect(0,0,FOG_CS,FOG_CS);
-  // Reveal starting base area
-  revealFog(0,0,24);
-})();
-
-var fogMesh=(function(){
-  var size=FOG_WR*2;
-  var geo=new THREE.PlaneBufferGeometry(size,size);
-  var mat=new THREE.MeshBasicMaterial({
-    color:0x000c18,
-    transparent:true,
-    opacity:0.92,
-    alphaMap:fogTexture,
-    depthWrite:false,
-    depthTest:false,
-    side:THREE.DoubleSide
-  });
-  var m=new THREE.Mesh(geo,mat);
-  m.rotation.x=-Math.PI/2;
-  m.position.y=0.8;
-  m.renderOrder=90;
-  scene.add(m);
-  return m;
-}());
-
-var _fogLastX=9999,_fogLastZ=9999,_fogUpdateTimer=0;
-function updateFog(delta){
-  if(!dGroup) return;
-  _fogUpdateTimer-=delta;
-  if(_fogUpdateTimer>0) return;
-  _fogUpdateTimer=0.35;
-  var x=dGroup.position.x, z=dGroup.position.z;
-  var d=Math.sqrt((x-_fogLastX)*(x-_fogLastX)+(z-_fogLastZ)*(z-_fogLastZ));
-  if(d>2.0){
-    revealFog(x,z,20);
-    _fogLastX=x; _fogLastZ=z;
-  }
-}
+// fog-of-war removed — world fully visible
+function revealFog(){} // no-op: called in various places, safe to keep as stub
+function updateFog(){}
 
 // ── POI DISCOVERY CHECK ───────────────────────────────────────────────
 var _poiCheckTimer=0;
@@ -7705,8 +7633,8 @@ var _D1_SERVER = (location.hostname === 'localhost' || location.hostname === '12
   ? 'http://localhost:3000/api/think'
   : '/api/think';
 var _D1_ONLINE = false; // set true once server responds
-var _D1_THOUGHT_TIMER = 60; // first thought fires 60s after online detected
-var _D1_THOUGHT_INTERVAL = 120; // seconds between periodic thoughts
+var _D1_THOUGHT_TIMER = 90; // first thought fires 90s after online detected
+var _D1_THOUGHT_INTERVAL = 180; // seconds between periodic thoughts
 var _D1_VISITOR_TIMER = 0;
 var _D1_VISITOR_COOLDOWN = 10; // seconds between visitor chat responses
 var _D1_PENDING_BUILD = null; // queued AI build response
@@ -7737,10 +7665,7 @@ function _d1State(extra) {
 function _d1Think(hook, extra, cb) {
   var payload = _d1State(extra);
   payload.hook = hook;
-  // Journal every AI query with hook + question context
   var _jHook = hook || 'think';
-  var _jQ = extra && extra.question ? extra.question.substring(0,48) : (extra && extra.lastEvent ? extra.lastEvent.substring(0,48) : '');
-  journalNote('[AI] '+_jHook+(_jQ?' → '+_jQ:''), '🤖');
   var xhr = new XMLHttpRequest();
   xhr.open('POST', _D1_SERVER, true);
   xhr.setRequestHeader('Content-Type','application/json');
@@ -7788,7 +7713,6 @@ function _d1PrefetchAction() {
     else if(r.indexOf('art')>=0)    _D1_NEXT_ACTION='art';
     else if(r.indexOf('scout')>=0)  _D1_NEXT_ACTION='scout';
     else                            _D1_NEXT_ACTION='explore';
-    journalNote('[AI] next action decided: '+_D1_NEXT_ACTION, '🗺');
   });
 }
 
@@ -7840,12 +7764,7 @@ var DESTINY_BRAIN = {
   // Called when DESTINY has been idle — AI suggests action
   idleAction: function() { return null; },
   // Called after terrain is shaped
-  onTerraform: function(type, x, z) {
-    if(!_D1_ONLINE) return;
-    _d1Think('onTerraform', {lastEvent:'terraformed '+type}, function(resp){
-      if(resp) setTimeout(function(){ destinyChat('[D1] '+resp); }, 1200);
-    });
-  },
+  onTerraform: function(type, x, z) {},
   // Resource gather callback (kept silent — too frequent)
   onGather: function(agentId, resource, amount) {},
   // Tick: drives periodic thoughts, visitor cooldown, and build suggestions
@@ -7888,12 +7807,7 @@ var DESTINY_BRAIN = {
   // Voice stays wry — AI handles actual lines
   getVoice: function() { return _D1_ONLINE ? 'terse' : null; },
   // Upgrade callback
-  onUpgrade: function(type, level, pos) {
-    if(!_D1_ONLINE) return;
-    _d1Think('onUpgrade', {lastEvent:'upgraded '+type+' to level '+level}, function(resp){
-      if(resp) setTimeout(function(){ destinyChat('[D1] '+resp); }, 800);
-    });
-  },
+  onUpgrade: function(type, level, pos) {},
   // Personality — lean tactical when AI is online
   getPersonality: function() {
     return _D1_ONLINE ? {militaristic:0.7, artistic:0.2, curious:0.6, practical:0.8, ambitious:0.9} : null;
