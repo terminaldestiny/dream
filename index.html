@@ -311,6 +311,45 @@
       background: rgba(0,5,15,0); transition: background 0.6s ease;
     }
     #dungeon-veil.dark { background: rgba(0,5,15,0.55); }
+
+    /* ── MOBILE ─────────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      /* Agent status — smaller, tighter */
+      #hud-agent { top: 8px; left: 8px; min-width: 0; padding: 7px 10px 7px 9px; }
+      #hud-agent-name { font-size: 9px; letter-spacing: 2px; margin-bottom: 5px; }
+      .hud-bar-label { font-size: 8px; }
+      .hud-val-row { font-size: 9px; }
+      #unit-status-label { font-size: 8px; }
+      #hud-tc-block { margin-top: 6px; padding-top: 6px; }
+
+      /* Resources — smaller, top right */
+      #hud-resources { top: 8px; right: 8px; min-width: 0; padding: 7px 10px 7px 9px; }
+      .hud-res-k { font-size: 8px; letter-spacing: 0; }
+      .hud-res-v { font-size: 9px; min-width: 28px; }
+      .hud-res-divider { margin: 3px 0; }
+      #hud-status-row { font-size: 8px; }
+
+      /* Combat — hide on mobile, too cluttered */
+      #hud-combat { display: none; }
+
+      /* Control buttons — larger tap targets, full width row */
+      #hud-controls { bottom: 10px; gap: 6px; }
+      .hud-btn { font-size: 10px; padding: 10px 14px; letter-spacing: 1px; }
+
+      /* Journal — full width on mobile */
+      #journal-panel { width: 96vw; bottom: 56px; }
+      #journal-log { max-height: 45vh; }
+      .j-line { font-size: 12px; }
+
+      /* CA address — smaller, less intrusive */
+      #ca-address { font-size: 9px; bottom: 10px; right: 8px; display: none; }
+
+      /* Thought bubbles — narrower on mobile */
+      /* handled via JS max-width already at 280px */
+
+      /* Inspect panel — full width */
+      #inspect-panel { width: 96vw; }
+    }
   </style>
 </head>
 <body>
@@ -7772,7 +7811,6 @@ function _d1PrefetchAction() {
 var DESTINY_BRAIN = {
   // Called after a structure finishes building — ask AI what to build next
   onBuildComplete: function(type, pos) {
-    journalNote('Built '+type.toUpperCase(), '🏗');
     if(!_D1_ONLINE) return;
     // Single call: ask what to build next. Response stored, consumed by BUILD_WAIT.
     _d1Think('decideBuild', {lastEvent:'finished '+type, question:'What should I build next? Name one structure type only.'}, function(resp){
@@ -7788,7 +7826,6 @@ var DESTINY_BRAIN = {
   },
   // Called when DESTINY finishes exploring a POI — AI reacts
   onDiscovery: function(poiName, pos) {
-    journalNote('Discovered: '+poiName, '🔭');
     if(!_D1_ONLINE) return null;
     _d1Think('onDiscovery', {lastEvent:'discovered '+poiName, question:'React to this discovery in character.'}, function(resp){
       if(resp) setTimeout(function(){ destinyChat('[D1] '+resp); }, 900);
@@ -9474,7 +9511,6 @@ function setStatus(s){
   if(dLineEl) dLineEl.textContent='DESTINY-1: '+s;
   if(dStatusEl) dStatusEl.textContent=s;
   if(dResStatusEl) dResStatusEl.textContent=s;
-  journalLog(s); // feed every status change into the journal
 }
 
 // ── SPEED CONTROL ─────────────────────────────────────────────────────
@@ -9591,12 +9627,7 @@ function destinyChat(msg){
   line.innerHTML='<span class="chat-ts">['+ts+']</span><span class="chat-name">DESTINY-1:</span><span class="chat-msg"> '+displayMsg+'</span>';
   chatLogEl.appendChild(line); chatLogEl.scrollTop=chatLogEl.scrollHeight;
   while(chatLogEl.children.length>45) chatLogEl.removeChild(chatLogEl.firstChild);
-  // Thought bubble in world space for AI responses; journal only for scripted (offline) messages
-  if(msg && msg.indexOf('[D1]')===0){
-    _spawnThoughtBubble(displayMsg); // _d1Think already journals AI responses via 💡
-  } else {
-    if(displayMsg && displayMsg.length>2) journalNote(displayMsg, '💬');
-  }
+  if(msg && msg.indexOf('[D1]')===0) _spawnThoughtBubble(displayMsg);
 }
 function showThought(text){ destinyChat(text); } // legacy alias → chat
 function hideThought(){} // no-op
@@ -9740,7 +9771,6 @@ function _spawnZoneBoss(zone){
     (function(_d){ setTimeout(function(){ createBurst(homePos.clone().setY(1.2),zone.color,25); },_d); })(bi*200);
   }
   _pulseBarrier(zone,0xff0000,10);
-  journalNote('⚠ ZONE GUARDIAN: '+zone.label+' — '+zone.bossType.toUpperCase()+' must be defeated to advance!','⚠');
   destinyChat('A guardian blocks the gate. I have to fight my way through.');
   _spawnDecisionRipple(0xff0000);
 }
@@ -9748,7 +9778,6 @@ function _spawnZoneBoss(zone){
 function _unlockZone(zone){
   if(zone.unlocked) return;
   zone.unlocked=true;
-  journalNote('🌐 '+zone.name+' CLEARED — territory unlocked: '+zone.label,'🌐');
   destinyChat('[D1] Barrier down. New territory is mine.');
   triggerHitFlash('rgba(120,220,255,0.22)');
   _spawnDecisionRipple(zone.color);
@@ -10156,10 +10185,8 @@ function updateDestiny(delta, t) {
         // Milestone combat callouts
         if(_hpAfter===Math.floor(dCurrentThreat.maxHp*0.5)){
           destinyChat('Halfway down. Pushing through.');
-          journalNote('⚔ '+dCurrentThreat.type+' at 50% HP — pressing attack', '⚔');
         } else if(_hpAfter===Math.floor(dCurrentThreat.maxHp*0.25)){
           destinyChat('Almost done. Final push.');
-          journalNote('⚔ '+dCurrentThreat.type+' critical — finishing blow incoming', '⚔');
         }
         if(dCurrentThreat.hp<=Math.ceil(dCurrentThreat.maxHp*0.33)&&dCurrentThreat.shell2) dCurrentThreat.shell2.material.opacity=0;
         if(dCurrentThreat.hp<=0&&dCurrentThreat.shell) dCurrentThreat.shell.material.opacity=0;
@@ -10173,7 +10200,6 @@ function updateDestiny(delta, t) {
             setTimeout(function(_zi){ return function(){ _unlockZone(WORLD_ZONES[_zi]); }; }(dCurrentThreat.zoneIdx), 600);
           }
           dissolveThreat(dCurrentThreat); killCount++; if(killEl) killEl.textContent=killCount;
-          journalNote('Neutralized '+(dCurrentThreat.type||'threat')+' — kill #'+killCount,'⚔');
           destinyHP=Math.max(10,destinyHP-8); dCurrentThreat=null;
           if(dParts.sword) dParts.sword.visible=false;
           destinyChat('Neutralized. Kill count: '+killCount+'. Back to construction.'); setStatus('PLANNING');
