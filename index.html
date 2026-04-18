@@ -9600,53 +9600,81 @@ function updateDestinyHP(delta){
 
 function buildDestiny() {
   var g=new THREE.Group();
-  var mG=new THREE.MeshBasicMaterial({color:0x00ff41}), mB=new THREE.MeshBasicMaterial({color:0x00bef0});
-  var mGo=new THREE.MeshBasicMaterial({color:0xffb000}), mW=new THREE.MeshBasicMaterial({color:0x00ff41,wireframe:true});
-  var mE=new THREE.MeshBasicMaterial({color:0x00ff41,blending:THREE.AdditiveBlending});
-  var mAu=new THREE.MeshBasicMaterial({color:0x00ff41,transparent:true,opacity:0.11,blending:THREE.AdditiveBlending,depthWrite:false});
-  var mRn=new THREE.MeshBasicMaterial({color:0x00ff41,transparent:true,opacity:0.45,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false});
 
-  var lLP=new THREE.Group(); lLP.position.set(-0.11,0.82,0);
-  var lLeg=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.068,0.052,0.8,7),mB); lLeg.position.set(0,-0.4,0); lLP.add(lLeg);
+  // ── Destiny's colour palette ──────────────────────────────────────
+  var mSkin   = new THREE.MeshBasicMaterial({color:0x8B5A3C}); // warm dark skin
+  var mHair   = new THREE.MeshBasicMaterial({color:0x18181F}); // near-black hair
+  var mJacket = new THREE.MeshBasicMaterial({color:0xD6D6D6}); // white/light jacket
+  var mShirt  = new THREE.MeshBasicMaterial({color:0x7A1F35}); // maroon inner shirt
+  var mJeans  = new THREE.MeshBasicMaterial({color:0x2D4E7A}); // blue jeans
+  var mEye    = new THREE.MeshBasicMaterial({color:0xffffff});
+  var mAu     = new THREE.MeshBasicMaterial({color:0x00bef0,transparent:true,opacity:0.10,blending:THREE.AdditiveBlending,depthWrite:false});
+  var mRn     = new THREE.MeshBasicMaterial({color:0x00bef0,transparent:true,opacity:0.40,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false});
+
+  // ── Legs (blue jeans) ─────────────────────────────────────────────
+  var lLP=new THREE.Group(); lLP.position.set(-0.115,0.82,0);
+  var lLeg=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.074,0.056,0.82,7),mJeans); lLeg.position.y=-0.41; lLP.add(lLeg);
   g.add(lLP);
-  var lRP=new THREE.Group(); lRP.position.set(0.11,0.82,0);
-  var rLeg=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.068,0.052,0.8,7),mB); rLeg.position.set(0,-0.4,0); lRP.add(rLeg);
+  var lRP=new THREE.Group(); lRP.position.set(0.115,0.82,0);
+  var rLeg=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.074,0.056,0.82,7),mJeans); rLeg.position.y=-0.41; lRP.add(rLeg);
   g.add(lRP);
 
-  var torso=new THREE.Mesh(new THREE.BoxBufferGeometry(0.44,0.64,0.22),mG); torso.position.y=1.14; g.add(torso);
-  var torsoW=new THREE.Mesh(new THREE.BoxBufferGeometry(0.49,0.69,0.27),mW); torsoW.position.y=1.14; g.add(torsoW);
-  var stripe=new THREE.Mesh(new THREE.BoxBufferGeometry(0.44,0.04,0.24),mGo); stripe.position.y=1.22; g.add(stripe);
+  // ── Torso — maroon shirt under open jacket ────────────────────────
+  var shirt=new THREE.Mesh(new THREE.BoxBufferGeometry(0.34,0.60,0.20),mShirt); shirt.position.y=1.14; g.add(shirt);
+  // Jacket body (wider, lighter)
+  var jacketL=new THREE.Mesh(new THREE.BoxBufferGeometry(0.14,0.60,0.22),mJacket); jacketL.position.set(-0.20,1.14,0); g.add(jacketL);
+  var jacketR=new THREE.Mesh(new THREE.BoxBufferGeometry(0.14,0.60,0.22),mJacket); jacketR.position.set( 0.20,1.14,0); g.add(jacketR);
+  // Jacket shoulders
+  var shoulderL=new THREE.Mesh(new THREE.BoxBufferGeometry(0.10,0.10,0.26),mJacket); shoulderL.position.set(-0.27,1.42,0); g.add(shoulderL);
+  var shoulderR=new THREE.Mesh(new THREE.BoxBufferGeometry(0.10,0.10,0.26),mJacket); shoulderR.position.set( 0.27,1.42,0); g.add(shoulderR);
 
-  var aLP=new THREE.Group(); aLP.position.set(-0.28,1.4,0);
-  var lArm=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.054,0.042,0.62,6),mG); lArm.position.set(0,-0.31,0); aLP.add(lArm);
+  // ── Arms (jacket sleeves, skin hands) ────────────────────────────
+  var aLP=new THREE.Group(); aLP.position.set(-0.30,1.40,0);
+  var lArm=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.058,0.044,0.58,6),mJacket); lArm.position.y=-0.29; aLP.add(lArm);
+  var lHand=new THREE.Mesh(new THREE.SphereBufferGeometry(0.046,5,5),mSkin); lHand.position.y=-0.62; aLP.add(lHand);
   g.add(aLP);
-  var aRP=new THREE.Group(); aRP.position.set(0.28,1.4,0);
-  var rArm=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.054,0.042,0.62,6),mG); rArm.position.set(0,-0.31,0); aRP.add(rArm);
+  var aRP=new THREE.Group(); aRP.position.set(0.30,1.40,0);
+  var rArm=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.058,0.044,0.58,6),mJacket); rArm.position.y=-0.29; aRP.add(rArm);
+  var rHand=new THREE.Mesh(new THREE.SphereBufferGeometry(0.046,5,5),mSkin); rHand.position.y=-0.62; aRP.add(rHand);
   g.add(aRP);
 
-  var head=new THREE.Mesh(new THREE.SphereBufferGeometry(0.21,8,8),mB); head.position.set(0,1.76,0); g.add(head);
-  var headW=new THREE.Mesh(new THREE.SphereBufferGeometry(0.228,8,8),mW); headW.position.set(0,1.76,0); g.add(headW);
-  var eL=new THREE.Mesh(new THREE.SphereBufferGeometry(0.038,4,4),mE); eL.position.set(-0.082,1.78,0.188); g.add(eL);
-  var eR=new THREE.Mesh(new THREE.SphereBufferGeometry(0.038,4,4),mE); eR.position.set(0.082,1.78,0.188); g.add(eR);
+  // ── Neck ──────────────────────────────────────────────────────────
+  var neck=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.054,0.054,0.14,6),mSkin); neck.position.y=1.54; g.add(neck);
+
+  // ── Head (dark skin) ──────────────────────────────────────────────
+  var head=new THREE.Mesh(new THREE.SphereBufferGeometry(0.20,8,8),mSkin); head.position.set(0,1.76,0); g.add(head);
+
+  // Eyes
+  var eL=new THREE.Mesh(new THREE.SphereBufferGeometry(0.028,4,4),mEye); eL.position.set(-0.074,1.78,0.182); g.add(eL);
+  var eR=new THREE.Mesh(new THREE.SphereBufferGeometry(0.028,4,4),mEye); eR.position.set( 0.074,1.78,0.182); g.add(eR);
+
+  // ── Hair ─────────────────────────────────────────────────────────
+  // Hair cap covering top + back of head
+  var hairCap=new THREE.Mesh(new THREE.SphereBufferGeometry(0.212,8,6),mHair); hairCap.position.set(0,1.83,-0.02); hairCap.scale.set(1,0.60,1); g.add(hairCap);
+  // Hair bun on top-back
+  var bun=new THREE.Mesh(new THREE.SphereBufferGeometry(0.082,7,7),mHair); bun.position.set(0.03,1.98,-0.05); g.add(bun);
+  // Loose strand left side
+  var strandL=new THREE.Mesh(new THREE.BoxBufferGeometry(0.048,0.20,0.048),mHair); strandL.position.set(-0.175,1.68,0.04); strandL.rotation.z=0.22; g.add(strandL);
+  // Loose strand right (shorter)
+  var strandR=new THREE.Mesh(new THREE.BoxBufferGeometry(0.038,0.12,0.038),mHair); strandR.position.set(0.165,1.72,0.04); strandR.rotation.z=-0.18; g.add(strandR);
+  // Back hair fall
+  var hairBack=new THREE.Mesh(new THREE.BoxBufferGeometry(0.14,0.20,0.06),mHair); hairBack.position.set(0,1.63,-0.21); g.add(hairBack);
+
+  // ── Aura + ground ring ────────────────────────────────────────────
   var aura=new THREE.Mesh(new THREE.SphereBufferGeometry(0.72,8,8),mAu); aura.position.y=1.0; g.add(aura);
   var gRing=new THREE.Mesh(new THREE.RingBufferGeometry(0.48,0.65,36),mRn); gRing.rotation.x=-Math.PI/2; gRing.position.y=0.02; g.add(gRing);
 
-  // ── DESTINY's sword (hidden until armory is built) ─────────────────
+  // ── Sword (hidden until armory built) ────────────────────────────
   var mBlade=new THREE.MeshBasicMaterial({color:0x88ccff,transparent:true,opacity:0.88});
   var mBladeG=new THREE.MeshBasicMaterial({color:0x44aaff,transparent:true,opacity:0.40,blending:THREE.AdditiveBlending,depthWrite:false});
   var mHilt=new THREE.MeshBasicMaterial({color:0xffb000});
   var sword=new THREE.Group();
-  // Blade
   sword.add(mk(new THREE.BoxBufferGeometry(0.04,0.80,0.04),mBlade,0,0.52,0));
   sword.add(mk(new THREE.BoxBufferGeometry(0.06,0.82,0.06),mBladeG,0,0.52,0));
   sword.add(mk(new THREE.ConeBufferGeometry(0.03,0.18,4),mBlade,0,0.96,0));
-  // Crossguard
   sword.add(mk(new THREE.BoxBufferGeometry(0.26,0.05,0.05),mHilt,0,0.12,0));
-  // Grip
   sword.add(mk(new THREE.CylinderBufferGeometry(0.025,0.025,0.22,5),sSt(0x5a3010),0,-0.02,0));
-  sword.position.set(0.12,-0.48,0.06);
-  sword.rotation.z=-0.25;
-  sword.visible=false;
+  sword.position.set(0.12,-0.48,0.06); sword.rotation.z=-0.25; sword.visible=false;
   aRP.add(sword);
 
   g.position.set(2,0,8); scene.add(g);
