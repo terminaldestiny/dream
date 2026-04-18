@@ -316,6 +316,8 @@
     @media (max-width: 640px) {
       /* Skip boot screen on mobile — go straight to game */
       #boot { display: none !important; }
+      /* Hide top title on mobile — HUD is enough */
+      #header { display: none; }
 
       /* Agent status — smaller, tighter */
       #hud-agent { top: 8px; left: 8px; min-width: 0; padding: 7px 10px 7px 9px; }
