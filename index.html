@@ -314,6 +314,9 @@
 
     /* ── MOBILE ─────────────────────────────────────────────────── */
     @media (max-width: 640px) {
+      /* Skip boot screen on mobile — go straight to game */
+      #boot { display: none !important; }
+
       /* Agent status — smaller, tighter */
       #hud-agent { top: 8px; left: 8px; min-width: 0; padding: 7px 10px 7px 9px; }
       #hud-agent-name { font-size: 9px; letter-spacing: 2px; margin-bottom: 5px; }
