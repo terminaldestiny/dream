@@ -5127,6 +5127,42 @@ var BUILD_COSTS={
   dugout:      {compute:12,wood:35,stone:5,  crystalium:0},
   bank:        {compute:60,wood:20,stone:80, crystalium:0}
 };
+
+// Build durations in seconds — how long each structure takes to fully appear
+var BUILD_DURATIONS={
+  townhall:    20,   // fast: it's the very first structure
+  tent:        90,   // 1.5 min: simple shelter
+  dugout:      90,
+  palisade:    90,
+  stoneFence:  90,
+  well:        120,  // 2 min
+  chickenCoop: 120,
+  vegetableGarden:120,
+  watchtower:  180,  // 3 min
+  barracks:    180,
+  farm:        180,
+  market:      180,
+  tavern:      180,
+  orchard:     180,
+  granary:     180,
+  forge:       240,  // 4 min
+  archive:     240,
+  workshop:    240,
+  observatory: 240,
+  watermill:   240,
+  windmill:    240,
+  gate:        300,  // 5 min
+  armory:      300,
+  bunker:      300,
+  battlewall:  300,
+  crenelWall:  300,
+  ironGate:    300,
+  ballista:    300,
+  lighthouse:  360,  // 6 min
+  bank:        360,
+  crystalforge:480   // 8 min
+};
+
 function resourceNeeded(type){
   var c=BUILD_COSTS[type]; if(!c) return null;
   if(res.compute<c.compute) return 'compute';
@@ -5415,7 +5451,8 @@ function placeStructure(type,pos,rot){
   structures.push(s); updateProgressBar();
   var revIdx=0;
   var stopAt=(type==='townhall'&&result.initCount)?result.initCount:s.phases.length;
-  var phDelay=type==='townhall'?600:1800; // town center initial phases fast; others slow and visible
+  var _buildSecs=(BUILD_DURATIONS[type]||180);
+  var phDelay=Math.max(300,Math.round(_buildSecs*1000/Math.max(1,stopAt)));
   function revealNext(){
     if(s.abortBuild||!s.alive) return;
     if(revIdx<stopAt){
