@@ -7733,7 +7733,7 @@ function _d1Think(hook, extra, cb) {
         var r = JSON.parse(xhr.responseText);
         var _resp = r.response||null;
         if(_resp){
-          journalNote('[AI] '+_jHook+': "'+_resp.substring(0,55)+'"', '💡');
+          journalNote('[AI] '+_jHook+': "'+_resp+'"', '💡');
           _spawnDecisionRipple(_RIPPLE_COLORS[_jHook]||0x00ff88);
         }
         cb(_resp);
@@ -9567,7 +9567,7 @@ function journalLog(action){
   line.innerHTML='<span class="j-ts">['+ts+']</span><span class="j-act">'+icon+' '+action+'</span>'+stateCtx;
   _journalEl.appendChild(line);
   _journalEl.scrollTop=_journalEl.scrollHeight;
-  while(_journalEl.children.length>60) _journalEl.removeChild(_journalEl.firstChild);
+  while(_journalEl.children.length>50) _journalEl.removeChild(_journalEl.firstChild);
 }
 function journalNote(text, icon){
   if(!_journalEl) return;
@@ -9577,7 +9577,7 @@ function journalNote(text, icon){
   line.innerHTML='<span class="j-ts">['+ts+']</span><span class="j-act">'+(icon||'💬')+'</span><span class="j-txt"> '+text+'</span>';
   _journalEl.appendChild(line);
   _journalEl.scrollTop=_journalEl.scrollHeight;
-  while(_journalEl.children.length>60) _journalEl.removeChild(_journalEl.firstChild);
+  while(_journalEl.children.length>50) _journalEl.removeChild(_journalEl.firstChild);
 }
 function toggleJournal(){
   _journalOpen=!_journalOpen;
