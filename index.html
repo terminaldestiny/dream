@@ -7755,7 +7755,7 @@ var _D1_PENDING_BUILD = null; // queued AI build response
 var _D1_LAST_BUILD_RESP = null; // last AI-chosen build type
 var _D1_PENDING_BUILD_ZONE = null; // 'center'|'mid'|'edge' from AI
 var _D1_LAST_CHAT_MS = 0; // timestamp of last AI chat line shown
-var _D1_CHAT_GAP_MS = 120000; // minimum 120s between AI chat messages
+var _D1_CHAT_GAP_MS = 150000; // minimum 150s between AI chat messages
 
 // Helper: collect current world state delta for the API
 function _d1State(extra) {
@@ -7824,45 +7824,42 @@ var _D1_PENDING_RARE = null; // 'lumite'|'deepIron'|'ancientStone' chosen by AI
 
 function _d1PrefetchAction() {
   if(!_D1_ONLINE) return;
-  _d1Think('decidePath', {question:'One word only — what should I do next: explore, build, gather, art, or scout?'}, function(resp){
+  // Single call returns action + detail — replaces up to 3 separate calls
+  var _poiNames=worldPOIs.map(function(p){return p.name;}).join(', ');
+  var _anyUpgrade=false;
+  for(var _ui=0;_ui<structures.length;_ui++){
+    var _us=structures[_ui]; if(_us.alive&&!_us.growing&&(_us.level||1)<3){_anyUpgrade=true;break;}
+  }
+  var _q='Reply in format "action|detail". Action: explore, build, gather, art, or scout. '
+    +'If explore, detail = one of: '+_poiNames+'. '
+    +'If art, detail = type|zone (type: totem,garden,shrine,sigil,cairn,obelisk,starmap,echostone,memring,glyphwall,torch,bonfire; zone: base,mid,far). '
+    +(_anyUpgrade?'If gather, detail = lumite, deepIron, or ancientStone. ':'')
+    +'Otherwise detail can be blank.';
+  _d1Think('decidePath',{question:_q},function(resp){
     if(!resp) return;
-    var r = resp.toLowerCase();
-    if(r.indexOf('build')>=0)        _D1_NEXT_ACTION='build';
-    else if(r.indexOf('gather')>=0)  _D1_NEXT_ACTION='gather';
-    else if(r.indexOf('art')>=0){
+    var parts=resp.split('|');
+    var action=parts[0]?parts[0].toLowerCase().trim():'explore';
+    if(action.indexOf('build')>=0)       _D1_NEXT_ACTION='build';
+    else if(action.indexOf('gather')>=0) _D1_NEXT_ACTION='gather';
+    else if(action.indexOf('scout')>=0)  _D1_NEXT_ACTION='scout';
+    else if(action.indexOf('art')>=0){
       _D1_NEXT_ACTION='art';
-      // Prefetch art details: ask AI for type and placement zone
-      _d1Think('chooseArtProject',{question:'Reply in format "type|zone". Type: totem,garden,shrine,sigil,cairn,obelisk,starmap,echostone,memring,glyphwall,torch,bonfire,spiritarch. Zone: base,mid,far.'},function(ar){
-        if(!ar) return;
-        var parts=ar.toLowerCase().split('|');
-        var artType=parts[0]?parts[0].trim():'totem';
-        var artZone=parts[1]?parts[1].trim():'mid';
-        if(['base','mid','far'].indexOf(artZone)===-1) artZone='mid';
-        _D1_PENDING_ART={pick:artType, zone:artZone};
-        journalNote('[AI] art planned: '+artType+' @ '+artZone, '🎨');
-      });
-    }
-    else if(r.indexOf('scout')>=0)   _D1_NEXT_ACTION='scout';
-    else {
+      var artType=(parts[1]||'totem').toLowerCase().trim();
+      var artZone=(parts[2]||'mid').toLowerCase().trim();
+      if(['base','mid','far'].indexOf(artZone)===-1) artZone='mid';
+      _D1_PENDING_ART={pick:artType,zone:artZone};
+      journalNote('[AI] art planned: '+artType+' @ '+artZone,'🎨');
+    } else {
       _D1_NEXT_ACTION='explore';
-      // Prefetch which POI to visit
-      var _poiNames=worldPOIs.map(function(p){return p.name;}).join(', ');
-      if(_poiNames) _d1Think('onDiscovery',{question:'Which location should I explore next? Reply with the exact name only: '+_poiNames+'.'},function(pr){
-        if(pr) _D1_PENDING_EXPLORE=pr.trim().toUpperCase();
-      });
+      if(parts[1]) _D1_PENDING_EXPLORE=parts[1].trim().toUpperCase();
     }
-    // Prefetch rare resource if any structure needs upgrading
-    var _anyUpgrade=false;
-    for(var _ui=0;_ui<structures.length;_ui++){
-      var _us=structures[_ui]; if(_us.alive&&!_us.growing&&(_us.level||1)<3){_anyUpgrade=true;break;}
-    }
-    if(_anyUpgrade) _d1Think('decidePath',{question:'Which rare resource should I gather for upgrades? Reply with one word only: lumite, deepIron, or ancientStone.'},function(rr){
-      if(!rr) return;
-      var rv=rr.toLowerCase();
+    // Parse rare from gather detail
+    if(_D1_NEXT_ACTION==='gather'&&parts[1]){
+      var rv=parts[1].toLowerCase();
       if(rv.indexOf('lumite')>=0) _D1_PENDING_RARE='lumite';
       else if(rv.indexOf('deepiron')>=0||rv.indexOf('deep')>=0) _D1_PENDING_RARE='deepIron';
       else if(rv.indexOf('ancient')>=0||rv.indexOf('stone')>=0) _D1_PENDING_RARE='ancientStone';
-    });
+    }
   });
 }
 
