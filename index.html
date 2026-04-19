@@ -7170,7 +7170,7 @@ function _spawnThoughtBubble(text){
   var short=text.replace(/^\[D1\]\s*/,'');
   el.style.cssText='position:fixed;font-family:monospace;font-size:13px;pointer-events:none;z-index:45;'+
     'color:#00ffdd;text-shadow:0 0 12px #00ffdd99,0 0 4px #00ffddcc;letter-spacing:0.8px;line-height:1.5;'+
-    'white-space:normal;max-width:280px;padding:6px 11px 6px 9px;border-left:2px solid #00ffdd55;background:rgba(0,10,8,0.84);';
+    'white-space:normal;max-width:'+(_MOBILE?'180px':'280px')+';padding:'+(_MOBILE?'4px 8px 4px 7px':'6px 11px 6px 9px')+';border-left:2px solid #00ffdd55;background:rgba(0,10,8,0.84);font-size:'+(_MOBILE?'11px':'13px')+';';
   el.textContent='» '+short;
   document.body.appendChild(el);
   _thoughtBubbles.push({el:el,life:0,maxLife:7.2,rise:0});
