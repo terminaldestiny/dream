@@ -313,16 +313,10 @@
 
     /* ── MOBILE ─────────────────────────────────────────────────── */
     @media (max-width: 640px) {
-      /* Skip boot screen on mobile — go straight to game */
       #boot { display: none !important; }
-      /* Hide top title on mobile — HUD is enough */
       #header { display: none; }
-    }
-    @media (max-height: 500px) and (orientation: landscape) {
-      #header { display: none; }
-      #boot { display: none !important; }
 
-      /* Agent status — smaller, tighter */
+      /* Agent panel — compact top-left */
       #hud-agent { top: 8px; left: 8px; min-width: 0; padding: 7px 10px 7px 9px; }
       #hud-agent-name { font-size: 9px; letter-spacing: 2px; margin-bottom: 5px; }
       .hud-bar-label { font-size: 8px; }
@@ -330,33 +324,40 @@
       #unit-status-label { font-size: 8px; }
       #hud-tc-block { margin-top: 6px; padding-top: 6px; }
 
-      /* Resources — smaller, top right */
+      /* Resources — compact top-right */
       #hud-resources { top: 8px; right: 8px; min-width: 0; padding: 7px 10px 7px 9px; }
       .hud-res-k { font-size: 8px; letter-spacing: 0; }
       .hud-res-v { font-size: 9px; min-width: 28px; }
       .hud-res-divider { margin: 3px 0; }
       #hud-status-row { font-size: 8px; }
 
-      /* Combat — hide on mobile, too cluttered */
+      /* Hide combat HUD — too cluttered on small screen */
       #hud-combat { display: none; }
 
-      /* Control buttons — larger tap targets, full width row */
-      #hud-controls { bottom: 10px; gap: 6px; }
-      .hud-btn { font-size: 10px; padding: 10px 14px; letter-spacing: 1px; }
+      /* Hide CA address on mobile */
+      #ca-address { display: none; }
 
-      /* Journal — full width on mobile */
-      #journal-panel { width: 96vw; bottom: 56px; }
-      #journal-log { max-height: 45vh; }
-      .j-line { font-size: 12px; }
+      /* Buttons — bottom center, compact */
+      #hud-controls { bottom: 10px; gap: 5px; }
+      .hud-btn { font-size: 9px; padding: 9px 11px; letter-spacing: 1px; }
 
-      /* CA address — smaller, less intrusive */
-      #ca-address { font-size: 9px; bottom: 10px; right: 8px; display: none; }
+      /* Journal panel */
+      #journal-panel { width: 96vw; bottom: 50px; }
+      #journal-log { max-height: 40vh; }
+      .j-line { font-size: 11px; }
 
-      /* Thought bubbles — narrower on mobile */
-      /* handled via JS max-width already at 280px */
-
-      /* Inspect panel — full width */
+      /* Inspect panel */
       #inspect-panel { width: 96vw; }
+    }
+    @media (max-height: 500px) and (orientation: landscape) {
+      #header { display: none; }
+      #boot { display: none !important; }
+      #hud-combat { display: none; }
+      #ca-address { display: none; }
+      #hud-controls { bottom: 8px; gap: 5px; }
+      .hud-btn { font-size: 9px; padding: 7px 10px; }
+      #journal-panel { width: 60vw; bottom: 44px; }
+      #journal-log { max-height: 35vh; }
     }
   </style>
 </head>
