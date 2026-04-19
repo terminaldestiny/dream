@@ -7819,6 +7819,8 @@ function _d1Say(fallback, hook, extra) {
 // Pre-fetched next-action from AI (set while busy, consumed in EXPLORE_WAIT)
 var _D1_NEXT_ACTION = null; // 'explore'|'build'|'gather'|'art'|'scout'
 var _D1_PENDING_ART = null; // {pick, zone} prefetched by AI
+var _D1_PENDING_EXPLORE = null; // POI name chosen by AI
+var _D1_PENDING_RARE = null; // 'lumite'|'deepIron'|'ancientStone' chosen by AI
 
 function _d1PrefetchAction() {
   if(!_D1_ONLINE) return;
@@ -7841,7 +7843,26 @@ function _d1PrefetchAction() {
       });
     }
     else if(r.indexOf('scout')>=0)   _D1_NEXT_ACTION='scout';
-    else                             _D1_NEXT_ACTION='explore';
+    else {
+      _D1_NEXT_ACTION='explore';
+      // Prefetch which POI to visit
+      var _poiNames=worldPOIs.map(function(p){return p.name;}).join(', ');
+      if(_poiNames) _d1Think('onDiscovery',{question:'Which location should I explore next? Reply with the exact name only: '+_poiNames+'.'},function(pr){
+        if(pr) _D1_PENDING_EXPLORE=pr.trim().toUpperCase();
+      });
+    }
+    // Prefetch rare resource if any structure needs upgrading
+    var _anyUpgrade=false;
+    for(var _ui=0;_ui<structures.length;_ui++){
+      var _us=structures[_ui]; if(_us.alive&&!_us.growing&&(_us.level||1)<3){_anyUpgrade=true;break;}
+    }
+    if(_anyUpgrade) _d1Think('decidePath',{question:'Which rare resource should I gather for upgrades? Reply with one word only: lumite, deepIron, or ancientStone.'},function(rr){
+      if(!rr) return;
+      var rv=rr.toLowerCase();
+      if(rv.indexOf('lumite')>=0) _D1_PENDING_RARE='lumite';
+      else if(rv.indexOf('deepiron')>=0||rv.indexOf('deep')>=0) _D1_PENDING_RARE='deepIron';
+      else if(rv.indexOf('ancient')>=0||rv.indexOf('stone')>=0) _D1_PENDING_RARE='ancientStone';
+    });
   });
 }
 
@@ -7855,6 +7876,16 @@ function _d1PrefetchAction() {
     if(chk.readyState===4&&chk.status===200){
       _D1_ONLINE=true;
       console.log('[DESTINY-1] Proxy online.');
+      // AI sets mood for this session
+      _d1Think('generateThought',{question:'Reply with one word only — your mood for this session: curious, artistic, determined, or serene.'},function(resp){
+        if(!resp) return;
+        var m=resp.toLowerCase().trim();
+        if(m.indexOf('curious')>=0) destinyMind.mood='curious';
+        else if(m.indexOf('artistic')>=0) destinyMind.mood='artistic';
+        else if(m.indexOf('determined')>=0) destinyMind.mood='determined';
+        else if(m.indexOf('serene')>=0) destinyMind.mood='serene';
+        journalNote('[AI] mood set: '+destinyMind.mood,'🧠');
+      });
       // Prime first build decision so AI pick is ready after townhall finishes
       _d1Think('decideBuild', {buildings:0, question:'Reply in format "type|zone". Type: first structure to build after town hall. Zone: center, mid, or edge.'}, function(resp){
         if(!resp) return;
@@ -10455,7 +10486,8 @@ function updateDestiny(delta, t) {
         var us=structures[ui]; if(us.alive&&!us.growing&&(us.level||1)<3){anyNeedsUpgrade=true;break;}
       }
       if(anyNeedsUpgrade){
-        var rareType=pickRareToGather();
+        var _aiRare=_D1_PENDING_RARE; _D1_PENDING_RARE=null;
+        var rareType=_aiRare||pickRareToGather();
         var rareIdx=findFreeNode(rareType);
         if(rareIdx!==-1){
           dRareNodeIdx=rareIdx; dRareCarryType=rareType;
@@ -10533,11 +10565,15 @@ function updateDestiny(delta, t) {
           dState='SCOUT_WALK'; setStatus('SCOUTING');
           _d1Say('Scout run. Going far.','chat',{lastEvent:'scouting',question:'Short line about heading out to scout unknown territory.'});
         } else {
-          // Default: explore a POI — clamp target to world boundary
+          // Default: explore a POI — AI picks, fallback to first undiscovered
           var target=null;
-          for(var ei=0;ei<worldPOIs.length;ei++){
-            if(!worldPOIs[ei].discovered){target=worldPOIs[ei];break;}
+          var _aiPoi=_D1_PENDING_EXPLORE; _D1_PENDING_EXPLORE=null;
+          if(_aiPoi){
+            for(var ei=0;ei<worldPOIs.length;ei++){
+              if(worldPOIs[ei].name.toUpperCase().indexOf(_aiPoi)>=0||_aiPoi.indexOf(worldPOIs[ei].name.toUpperCase())>=0){target=worldPOIs[ei];break;}
+            }
           }
+          if(!target){for(var ei=0;ei<worldPOIs.length;ei++){if(!worldPOIs[ei].discovered){target=worldPOIs[ei];break;}}}
           if(!target) target=worldPOIs[Math.floor(Math.random()*worldPOIs.length)];
           dExplorePOI=target;
           // Clamp POI target so Destiny never walks off the visible map
