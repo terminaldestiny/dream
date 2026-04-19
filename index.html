@@ -379,6 +379,8 @@
 
 <div id="scanlines"></div>
 <div id="threat-flash"></div>
+<div id="destiny-nameplate" style="position:fixed;pointer-events:none;z-index:40;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;color:#00bef0;text-shadow:0 0 8px #00bef0aa;transform:translateX(-50%);display:none;">DESTINY-1</div>
+<div id="build-progress-container" style="position:fixed;top:0;left:0;pointer-events:none;z-index:38;"></div>
 <div id="destiny-tracker" style="display:none;position:fixed;z-index:30;pointer-events:none;font-family:monospace;font-size:11px;color:#00ff88;text-shadow:0 0 6px #00ff88;background:rgba(0,0,0,0.55);border:1px solid #00ff8855;padding:3px 7px;border-radius:3px;">▶ DESTINY</div>
 <div id="header">
   <h1>TERMINAL DESTINY</h1>
@@ -957,13 +959,15 @@ var _lastDayBand = -1;  // for chat triggers
 
 // Sky colour key-frames: {t, bg hex, fog hex, fogNear, fogFar}
 var _SKY = [
-  {t:0.00, bg:0x000510, fg:0x000510, fn:35, ff:140},  // deep night
-  {t:0.18, bg:0x05070d, fg:0x050708, fn:45, ff:165},  // pre-dawn
-  {t:0.26, bg:0x091008, fg:0x091008, fn:60, ff:220},  // dawn
-  {t:0.50, bg:0x081c14, fg:0x081c14, fn:80, ff:295},  // midday
-  {t:0.72, bg:0x080a0e, fg:0x070810, fn:65, ff:230},  // dusk
-  {t:0.83, bg:0x030508, fg:0x030508, fn:44, ff:165},  // after-dusk
-  {t:1.00, bg:0x000510, fg:0x000510, fn:35, ff:140}   // deep night (wrap)
+  {t:0.00, bg:0x000a1a, fg:0x000a1a, fn:35, ff:140},  // deep night — dark blue
+  {t:0.20, bg:0x1a0a08, fg:0x1a0a08, fn:45, ff:165},  // pre-dawn — dark red glow
+  {t:0.28, bg:0x3d1a08, fg:0x3d1a08, fn:60, ff:220},  // dawn — warm orange
+  {t:0.38, bg:0x0a2a1a, fg:0x0a2a1a, fn:75, ff:280},  // morning — greening sky
+  {t:0.50, bg:0x061f10, fg:0x061f10, fn:80, ff:295},  // midday — deep green
+  {t:0.65, bg:0x1f1008, fg:0x1f1008, fn:70, ff:240},  // afternoon — amber tint
+  {t:0.75, bg:0x2a0a0a, fg:0x2a0a0a, fn:55, ff:190},  // dusk — deep red
+  {t:0.85, bg:0x0a0818, fg:0x0a0818, fn:44, ff:165},  // after-dusk — purple
+  {t:1.00, bg:0x000a1a, fg:0x000a1a, fn:35, ff:140}   // deep night (wrap)
 ];
 
 // Stars — only visible at night
@@ -7227,6 +7231,51 @@ function _updateDestinyTracker(){
   _destinyTrackerEl.style.top=_ey+'px';
 }
 
+// ── DESTINY nameplate — floats above her head ─────────────────────────
+var _nameplateEl=document.getElementById('destiny-nameplate');
+function _updateNameplate(){
+  if(!dGroup||!_nameplateEl) return;
+  var above=new THREE.Vector3(dGroup.position.x, dGroup.position.y+2.6, dGroup.position.z);
+  var sv=above.clone().project(camera);
+  if(sv.z>1){_nameplateEl.style.display='none';return;}
+  var sx=(sv.x*0.5+0.5)*window.innerWidth;
+  var sy=(1-(sv.y*0.5+0.5))*window.innerHeight;
+  _nameplateEl.style.left=sx+'px';
+  _nameplateEl.style.top=sy+'px';
+  _nameplateEl.style.display='block';
+}
+
+// ── Build progress labels — float above structures under construction ──
+var _bpContainer=document.getElementById('build-progress-container');
+var _bpEls={}; // keyed by structure index
+function _updateBuildProgress(){
+  if(!_bpContainer) return;
+  for(var bi=0;bi<structures.length;bi++){
+    var s=structures[bi];
+    if(!s.alive) continue;
+    if(s.growing){
+      var pct=s.buildDurationMs>0?Math.min(99,Math.round((Date.now()-s.buildStartMs)/s.buildDurationMs*100)):0;
+      if(!_bpEls[bi]){
+        var el=document.createElement('div');
+        el.style.cssText='position:absolute;transform:translateX(-50%);font-family:monospace;font-size:9px;letter-spacing:1px;color:#ffb000cc;text-shadow:0 0 6px #ffb00088;white-space:nowrap;';
+        _bpContainer.appendChild(el);
+        _bpEls[bi]=el;
+      }
+      var above=new THREE.Vector3(s.pos.x,s.pos.y+4.5,s.pos.z);
+      var sv=above.clone().project(camera);
+      if(sv.z>1){_bpEls[bi].style.display='none';continue;}
+      var sx=(sv.x*0.5+0.5)*window.innerWidth;
+      var sy=(1-(sv.y*0.5+0.5))*window.innerHeight;
+      _bpEls[bi].style.left=sx+'px';
+      _bpEls[bi].style.top=sy+'px';
+      _bpEls[bi].style.display='block';
+      _bpEls[bi].textContent='▒ '+pct+'%';
+    } else {
+      if(_bpEls[bi]){ _bpContainer.removeChild(_bpEls[bi]); delete _bpEls[bi]; }
+    }
+  }
+}
+
 // ── Town Center HP ────────────────────────────────────────────────────
 var tcHP=100, tcMaxHP=100;
 var tcHpBar=document.getElementById('tc-hp-bar');
@@ -11143,6 +11192,8 @@ function animate() {
   _updateDmgLabels(delta);
   _updateThoughtBubbles(delta);
   _updateDestinyTracker();
+  _updateNameplate();
+  _updateBuildProgress();
   updatePOIDiscovery(delta);
   DESTINY_BRAIN.tick(delta);
   updateDungeonCamera(delta);
