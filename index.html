@@ -377,6 +377,13 @@
   </div>
 </div>
 
+<div id="mobile-warning" style="display:none;position:fixed;inset:0;z-index:999;background:#000;font-family:'Courier New',monospace;color:#00ff41;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;">
+  <div style="font-size:13px;letter-spacing:4px;color:#00bef0;margin-bottom:24px;">TERMINAL DESTINY DREAM</div>
+  <div style="font-size:28px;margin-bottom:20px;">🖥️</div>
+  <div style="font-size:14px;letter-spacing:2px;color:#ffb000;margin-bottom:16px;">DESKTOP RECOMMENDED</div>
+  <div style="font-size:11px;letter-spacing:1px;color:#00ff4188;line-height:1.8;margin-bottom:32px;">This world runs a live 3D AI agent 24/7.<br>On mobile it will drain your battery<br>and run hot. Open on a computer<br>for the full experience.</div>
+  <button onclick="document.getElementById('mobile-warning').style.display='none'" style="background:rgba(0,255,65,0.08);border:1px solid #00ff4144;color:#00ff4188;font-family:'Courier New',monospace;font-size:10px;letter-spacing:3px;padding:12px 28px;cursor:pointer;">CONTINUE ANYWAY</button>
+</div>
 <div id="scanlines"></div>
 <div id="threat-flash"></div>
 <div id="destiny-nameplate" style="position:fixed;pointer-events:none;z-index:40;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;color:#00bef0;text-shadow:0 0 8px #00bef0aa;transform:translateX(-50%);display:none;">DESTINY-1</div>
@@ -505,6 +512,7 @@
 
 // ── MOBILE PERFORMANCE MODE ───────────────────────────────────────────
 var _MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 640;
+if(_MOBILE) document.getElementById('mobile-warning').style.display='flex';
 
 // ── BOOT TIMING ──────────────────────────────────────────────────────
 setTimeout(function () {
