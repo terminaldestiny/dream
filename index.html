@@ -7793,8 +7793,6 @@ function _d1Think(hook, extra, cb) {
         var r = JSON.parse(xhr.responseText);
         var _resp = r.response||null;
         if(_resp){
-          var _journalHooks = {decideBuild:1,onBuildComplete:1,generateThought:1,onDiscovery:1,chooseArtProject:1,decidePath:1};
-          if(_journalHooks[_jHook]) journalNote('[AI] '+_resp, '💡');
           _spawnDecisionRipple(_RIPPLE_COLORS[_jHook]||0x00ff88);
         }
         cb(_resp);
@@ -9698,7 +9696,10 @@ function destinyChat(msg){
   line.innerHTML='<span class="chat-ts">['+ts+']</span><span class="chat-name">DESTINY-1:</span><span class="chat-msg"> '+displayMsg+'</span>';
   chatLogEl.appendChild(line); chatLogEl.scrollTop=chatLogEl.scrollHeight;
   while(chatLogEl.children.length>45) chatLogEl.removeChild(chatLogEl.firstChild);
-  if(msg && msg.indexOf('[D1]')===0) _spawnThoughtBubble(displayMsg);
+  if(msg && msg.indexOf('[D1]')===0){
+    _spawnThoughtBubble(displayMsg);
+    journalNote('[AI] '+displayMsg,'💬');
+  }
 }
 function showThought(text){ destinyChat(text); } // legacy alias → chat
 function hideThought(){} // no-op
