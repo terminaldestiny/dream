@@ -7837,26 +7837,31 @@ function _d1PrefetchAction() {
     if(!resp) return;
     var parts=resp.split('|');
     var action=parts[0]?parts[0].toLowerCase().trim():'explore';
-    if(action.indexOf('build')>=0)       _D1_NEXT_ACTION='build';
-    else if(action.indexOf('gather')>=0) _D1_NEXT_ACTION='gather';
-    else if(action.indexOf('scout')>=0)  _D1_NEXT_ACTION='scout';
-    else if(action.indexOf('art')>=0){
+    if(action.indexOf('build')>=0){
+      _D1_NEXT_ACTION='build';
+      journalNote('→ NEXT: build','🏗');
+    } else if(action.indexOf('gather')>=0){
+      _D1_NEXT_ACTION='gather';
+      var _rDetail=(parts[1]||'').trim()||'rare resource';
+      var rv=_rDetail.toLowerCase();
+      if(rv.indexOf('lumite')>=0) _D1_PENDING_RARE='lumite';
+      else if(rv.indexOf('deepiron')>=0||rv.indexOf('deep')>=0) _D1_PENDING_RARE='deepIron';
+      else if(rv.indexOf('ancient')>=0||rv.indexOf('stone')>=0) _D1_PENDING_RARE='ancientStone';
+      journalNote('→ GATHER: '+(_D1_PENDING_RARE||_rDetail),'⛏');
+    } else if(action.indexOf('scout')>=0){
+      _D1_NEXT_ACTION='scout';
+      journalNote('→ SCOUT: perimeter run','🔭');
+    } else if(action.indexOf('art')>=0){
       _D1_NEXT_ACTION='art';
       var artType=(parts[1]||'totem').toLowerCase().trim();
       var artZone=(parts[2]||'mid').toLowerCase().trim();
       if(['base','mid','far'].indexOf(artZone)===-1) artZone='mid';
       _D1_PENDING_ART={pick:artType,zone:artZone};
-      journalNote('[AI] art planned: '+artType+' @ '+artZone,'🎨');
+      journalNote('→ ART: '+artType+' @ '+artZone,'🎨');
     } else {
       _D1_NEXT_ACTION='explore';
       if(parts[1]) _D1_PENDING_EXPLORE=parts[1].trim().toUpperCase();
-    }
-    // Parse rare from gather detail
-    if(_D1_NEXT_ACTION==='gather'&&parts[1]){
-      var rv=parts[1].toLowerCase();
-      if(rv.indexOf('lumite')>=0) _D1_PENDING_RARE='lumite';
-      else if(rv.indexOf('deepiron')>=0||rv.indexOf('deep')>=0) _D1_PENDING_RARE='deepIron';
-      else if(rv.indexOf('ancient')>=0||rv.indexOf('stone')>=0) _D1_PENDING_RARE='ancientStone';
+      journalNote('→ EXPLORE: '+(parts[1]?parts[1].trim():'world'),'🗺');
     }
   });
 }
@@ -7906,6 +7911,7 @@ var DESTINY_BRAIN = {
       _D1_LAST_BUILD_RESP = parts[0]?parts[0].trim():resp;
       var z=parts[1]?parts[1].trim().toLowerCase():'mid';
       _D1_PENDING_BUILD_ZONE = (['center','mid','edge'].indexOf(z)>=0)?z:'mid';
+      journalNote('→ BUILD: '+_D1_LAST_BUILD_RESP+' @ '+_D1_PENDING_BUILD_ZONE,'🏗');
     });
   },
   // Called when DESTINY is about to start an art project — AI picks type
