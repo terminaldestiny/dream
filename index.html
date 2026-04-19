@@ -521,7 +521,7 @@ setTimeout(function () {
     var b = document.getElementById('boot');
     if (b.parentNode) b.parentNode.removeChild(b);
   }, 1100);
-  document.getElementById('sub-text').textContent = '// WORLD ONLINE — BOOT AGE //';
+  document.getElementById('sub-text').textContent = '';
 }, 4000);
 
 // ── RENDERER ─────────────────────────────────────────────────────────
@@ -2201,10 +2201,10 @@ function triggerLightning(){
   _boltGroup.visible=true;
   _boltActive=true;
   _boltTimer=0.12;
-  // Screen flash
-  _lightningDiv.style.background='rgba(180,210,255,0.82)';
-  setTimeout(function(){ _lightningDiv.style.background='rgba(180,210,255,0.25)'; },60);
-  setTimeout(function(){ _lightningDiv.style.background='rgba(180,210,255,0)'; },180);
+  // Screen flash — kept subtle for accessibility
+  _lightningDiv.style.background='rgba(180,210,255,0.28)';
+  setTimeout(function(){ _lightningDiv.style.background='rgba(180,210,255,0.10)'; },80);
+  setTimeout(function(){ _lightningDiv.style.background='rgba(180,210,255,0)'; },220);
   // Schedule thunder (sound-like screen shake 2-4s later)
   var delay=2000+Math.random()*2000;
   _thunderQueue.push({t:performance.now()+delay, close:imp});
@@ -2306,9 +2306,9 @@ function updateHeavyRain(delta, t){
   for(var qi=_thunderQueue.length-1;qi>=0;qi--){
     if(now>=_thunderQueue[qi].t){
       // Screen shake — secondary flash
-      _lightningDiv.style.background='rgba(100,130,200,0.18)';
+      _lightningDiv.style.background='rgba(100,130,200,0.08)';
       setTimeout(function(){ _lightningDiv.style.background='rgba(100,130,200,0)'; },120);
-      _shakeTimer=0.45; _shakeAmt=0.22;
+      _shakeTimer=0.3; _shakeAmt=0.1;
       _thunderQueue.splice(qi,1);
     }
   }
@@ -2426,11 +2426,15 @@ var _BP_RANGE={
 // The fog-of-war map covers 200 units; 90 keeps the city well within the visible world.
 var WORLD_BUILD_LIMIT = 90;
 
-function chooseBuildPos(type){
+function chooseBuildPos(type, zone){
   // Farm types get smart placement in the farming district
   if(FARM_TYPES_SET[type]) return chooseFarmPos(type);
   var cfg=_BP_RANGE[type]||{mn:8,mx:90,br:3};
   if(cfg.mn===0){ buildingFootprints.push({x:0,z:0,r:cfg.br}); return new THREE.Vector3(0,0,0); }
+  // AI zone overrides radius range: center=8-20, mid=18-40, edge=38-70
+  if(zone==='center'){ cfg={mn:8,mx:20,br:cfg.br}; }
+  else if(zone==='mid'){ cfg={mn:18,mx:40,br:cfg.br}; }
+  else if(zone==='edge'){ cfg={mn:38,mx:70,br:cfg.br}; }
   // Try random positions within the capped build limit
   for(var att=0;att<200;att++){
     var angle=Math.random()*Math.PI*2;
@@ -5697,8 +5701,7 @@ var _TK=['cyber','arcane','industrial','nature'];
 var destinyMind={
   theme: DESTINY_THEMES[_TK[Math.floor(Math.random()*4)]],
   mood: ['curious','artistic','determined','serene'][Math.floor(Math.random()*4)],
-  artTimer: 55.0,
-  nameTimer: 85.0,
+  nameTimer: 180 + Math.random() * 540,
   nameWritten: false,
   pendingPersonalize: [],   // {s, delay}
   creationPositions: []     // {x,z} of placed art pieces
@@ -6354,9 +6357,14 @@ function buildRuinedWall(x,z){
 }
 
 // Find a clear world position for an art piece
-function findArtSpot(){
+// zone: 'base'=r4-10, 'mid'=r10-20, 'far'=r20-38
+function findArtSpot(zone){
+  var rMin=5, rMax=18;
+  if(zone==='base'){rMin=4;rMax=10;}
+  else if(zone==='mid'){rMin=10;rMax=22;}
+  else if(zone==='far'){rMin=22;rMax=38;}
   for(var att=0;att<30;att++){
-    var a=Math.random()*Math.PI*2, r=5+Math.random()*18;
+    var a=Math.random()*Math.PI*2, r=rMin+Math.random()*(rMax-rMin);
     var px=Math.cos(a)*r, pz=Math.sin(a)*r;
     var ok=true;
     for(var si=0;si<structures.length&&ok;si++){
@@ -6931,22 +6939,6 @@ function updateDestinyCreativity(delta){
     if(destinyMind.nameTimer<=0) buildSignature();
   }
   if(woahCooldown>0) woahCooldown-=delta;
-  destinyMind.artTimer-=delta;
-  if(destinyMind.artTimer<=0){
-    if(structures.length>0 && !_pendingArtProject){
-      // Queue the art project — Destiny will walk there when idle
-      if(Math.random()<0.12&&woahCooldown<=0){
-        // WOAH build: queue a temple or spiral tower
-        var _wa=Math.random()*Math.PI*2, _wr=12+Math.random()*10;
-        _pendingArtProject={x:Math.cos(_wa)*_wr,z:Math.sin(_wa)*_wr,pick:Math.random()>0.5?'temple':'spiral'};
-        woahCooldown=600+Math.random()*300;
-      } else {
-        var _ap=pickArtProject();
-        if(_ap) _pendingArtProject=_ap;
-      }
-    }
-    destinyMind.artTimer=55+Math.random()*55;
-  }
 }
 
 // ── Worker agents ─────────────────────────────────────────────────────
@@ -7755,14 +7747,15 @@ var _D1_SERVER = (location.hostname === 'localhost' || location.hostname === '12
   ? 'http://localhost:3000/api/think'
   : '/api/think';
 var _D1_ONLINE = false; // set true once server responds
-var _D1_THOUGHT_TIMER = 90; // first thought fires 90s after online detected
-var _D1_THOUGHT_INTERVAL = 180; // seconds between periodic thoughts
+var _D1_THOUGHT_TIMER = 120; // first thought fires 120s after online detected
+var _D1_THOUGHT_INTERVAL = 360; // seconds between periodic thoughts
 var _D1_VISITOR_TIMER = 0;
 var _D1_VISITOR_COOLDOWN = 10; // seconds between visitor chat responses
 var _D1_PENDING_BUILD = null; // queued AI build response
 var _D1_LAST_BUILD_RESP = null; // last AI-chosen build type
+var _D1_PENDING_BUILD_ZONE = null; // 'center'|'mid'|'edge' from AI
 var _D1_LAST_CHAT_MS = 0; // timestamp of last AI chat line shown
-var _D1_CHAT_GAP_MS = 30000; // minimum 30s between AI chat messages
+var _D1_CHAT_GAP_MS = 120000; // minimum 120s between AI chat messages
 
 // Helper: collect current world state delta for the API
 function _d1State(extra) {
@@ -7800,7 +7793,8 @@ function _d1Think(hook, extra, cb) {
         var r = JSON.parse(xhr.responseText);
         var _resp = r.response||null;
         if(_resp){
-          journalNote('[AI] '+_jHook+': "'+_resp+'"', '💡');
+          var _journalHooks = {decideBuild:1,onBuildComplete:1,generateThought:1,onDiscovery:1,chooseArtProject:1,decidePath:1};
+          if(_journalHooks[_jHook]) journalNote('[AI] '+_resp, '💡');
           _spawnDecisionRipple(_RIPPLE_COLORS[_jHook]||0x00ff88);
         }
         cb(_resp);
@@ -7824,17 +7818,30 @@ function _d1Say(fallback, hook, extra) {
 
 // Pre-fetched next-action from AI (set while busy, consumed in EXPLORE_WAIT)
 var _D1_NEXT_ACTION = null; // 'explore'|'build'|'gather'|'art'|'scout'
+var _D1_PENDING_ART = null; // {pick, zone} prefetched by AI
 
 function _d1PrefetchAction() {
   if(!_D1_ONLINE) return;
   _d1Think('decidePath', {question:'One word only — what should I do next: explore, build, gather, art, or scout?'}, function(resp){
     if(!resp) return;
     var r = resp.toLowerCase();
-    if(r.indexOf('build')>=0)   _D1_NEXT_ACTION='build';
-    else if(r.indexOf('gather')>=0) _D1_NEXT_ACTION='gather';
-    else if(r.indexOf('art')>=0)    _D1_NEXT_ACTION='art';
-    else if(r.indexOf('scout')>=0)  _D1_NEXT_ACTION='scout';
-    else                            _D1_NEXT_ACTION='explore';
+    if(r.indexOf('build')>=0)        _D1_NEXT_ACTION='build';
+    else if(r.indexOf('gather')>=0)  _D1_NEXT_ACTION='gather';
+    else if(r.indexOf('art')>=0){
+      _D1_NEXT_ACTION='art';
+      // Prefetch art details: ask AI for type and placement zone
+      _d1Think('chooseArtProject',{question:'Reply in format "type|zone". Type: totem,garden,shrine,sigil,cairn,obelisk,starmap,echostone,memring,glyphwall,torch,bonfire,spiritarch. Zone: base,mid,far.'},function(ar){
+        if(!ar) return;
+        var parts=ar.toLowerCase().split('|');
+        var artType=parts[0]?parts[0].trim():'totem';
+        var artZone=parts[1]?parts[1].trim():'mid';
+        if(['base','mid','far'].indexOf(artZone)===-1) artZone='mid';
+        _D1_PENDING_ART={pick:artType, zone:artZone};
+        journalNote('[AI] art planned: '+artType+' @ '+artZone, '🎨');
+      });
+    }
+    else if(r.indexOf('scout')>=0)   _D1_NEXT_ACTION='scout';
+    else                             _D1_NEXT_ACTION='explore';
   });
 }
 
@@ -7849,8 +7856,12 @@ function _d1PrefetchAction() {
       _D1_ONLINE=true;
       console.log('[DESTINY-1] Proxy online.');
       // Prime first build decision so AI pick is ready after townhall finishes
-      _d1Think('decideBuild', {buildings:0, question:'I just started. What should I build first after the town hall? Name one structure type only.'}, function(resp){
-        if(resp) _D1_LAST_BUILD_RESP = resp;
+      _d1Think('decideBuild', {buildings:0, question:'Reply in format "type|zone". Type: first structure to build after town hall. Zone: center, mid, or edge.'}, function(resp){
+        if(!resp) return;
+        var parts=resp.split('|');
+        _D1_LAST_BUILD_RESP = parts[0]?parts[0].trim():resp;
+        var z=parts[1]?parts[1].trim().toLowerCase():'mid';
+        _D1_PENDING_BUILD_ZONE = (['center','mid','edge'].indexOf(z)>=0)?z:'mid';
       });
     }
   };
@@ -7863,9 +7874,12 @@ var DESTINY_BRAIN = {
   // Called after a structure finishes building — ask AI what to build next
   onBuildComplete: function(type, pos) {
     if(!_D1_ONLINE) return;
-    // Single call: ask what to build next. Response stored, consumed by BUILD_WAIT.
-    _d1Think('decideBuild', {lastEvent:'finished '+type, question:'What should I build next? Name one structure type only.'}, function(resp){
-      if(resp){ _D1_LAST_BUILD_RESP = resp; } // _d1Think already logs the response
+    _d1Think('decideBuild', {lastEvent:'finished '+type, question:'Reply in format "type|zone". Type: one structure name. Zone: center, mid, or edge (distance from base).'}, function(resp){
+      if(!resp) return;
+      var parts=resp.split('|');
+      _D1_LAST_BUILD_RESP = parts[0]?parts[0].trim():resp;
+      var z=parts[1]?parts[1].trim().toLowerCase():'mid';
+      _D1_PENDING_BUILD_ZONE = (['center','mid','edge'].indexOf(z)>=0)?z:'mid';
     });
   },
   // Called when DESTINY is about to start an art project — AI picks type
@@ -9628,6 +9642,11 @@ function journalNote(text, icon){
   _journalEl.appendChild(line);
   _journalEl.scrollTop=_journalEl.scrollHeight;
   while(_journalEl.children.length>50) _journalEl.removeChild(_journalEl.firstChild);
+  // AI journal entries also show as thought bubbles
+  if(text && text.indexOf('[AI]')===0) {
+    var bubbleText = text.replace(/^\[AI\]\s*/,'');
+    setTimeout(function(){ _spawnThoughtBubble(bubbleText); }, 400);
+  }
 }
 function toggleJournal(){
   _journalOpen=!_journalOpen;
@@ -9970,14 +9989,16 @@ function _tdLoad(){
   return true;
 }
 
+var _tdResetting = false;
 function _tdReset(){
+  _tdResetting = true;
   try{localStorage.removeItem(_TD_SAVE_KEY);}catch(e){}
   location.reload();
 }
 
 // Auto-save every 90s and on page close
 setInterval(_tdSave,90000);
-window.addEventListener('beforeunload',_tdSave);
+window.addEventListener('beforeunload',function(){ if(!_tdResetting) _tdSave(); });
 
 // Load save or start fresh
 var _tdFreshStart=!_tdLoad();
@@ -10107,7 +10128,8 @@ function updateDestiny(delta, t) {
           dBuildType=nextAuto;
           var neededA=resourceNeeded(nextAuto);
           if(!neededA){
-            var bPosA=chooseBuildPos(nextAuto);
+            var _bZoneA = _D1_PENDING_BUILD_ZONE; _D1_PENDING_BUILD_ZONE = null;
+            var bPosA=chooseBuildPos(nextAuto, _bZoneA);
             if(bPosA){
               dBuildPos.copy(bPosA); dBuildRot=Math.atan2(bPosA.x,bPosA.z);
               dTarget.copy(bPosA); dState='BUILD_WALK'; setStatus('MOVING');
@@ -10163,7 +10185,8 @@ function updateDestiny(delta, t) {
       }
       var needed=resourceNeeded(dBuildType);
       if(!needed){
-        var bPos=chooseBuildPos(dBuildType);
+        var _bZone = _D1_PENDING_BUILD_ZONE; _D1_PENDING_BUILD_ZONE = null;
+        var bPos=chooseBuildPos(dBuildType, _bZone);
         if(bPos){
           dBuildPos.copy(bPos); dBuildRot=(dBuildType==='townhall')?0:Math.atan2(bPos.x,bPos.z);
           dTarget.copy(bPos); dState='BUILD_WALK'; setStatus('MOVING');
@@ -10401,9 +10424,14 @@ function updateDestiny(delta, t) {
       // AI pathfinding: consume pre-fetched action hint to influence next destination
       var _aiHint = _D1_NEXT_ACTION; _D1_NEXT_ACTION = null;
       if(_D1_ONLINE && _aiHint === 'art') {
-        var _aiBap = pickArtProject();
-        if(_aiBap){ dArtPos.set(_aiBap.x,0,_aiBap.z); dArtPick=_aiBap.pick; dTarget.copy(dArtPos); dState='ART_WALK'; setStatus('CREATING');
-          _d1Say('Something should stand here.','chat',{lastEvent:'ai chose art',question:'Short line about placing art.'}); return; }
+        var _artData = _D1_PENDING_ART; _D1_PENDING_ART = null;
+        var _artSpot = findArtSpot(_artData ? _artData.zone : 'mid');
+        if(_artSpot){
+          dArtPos.set(_artSpot.x,0,_artSpot.z);
+          dArtPick = _artData ? _artData.pick : 'totem';
+          dTarget.copy(dArtPos); dState='ART_WALK'; setStatus('CREATING');
+          _d1Say('Something should stand here.','chat',{lastEvent:'ai chose art: '+dArtPick,question:'Short line about placing art.'}); return;
+        }
       }
       if(_D1_ONLINE && _aiHint === 'scout') {
         var _aiSa=Math.random()*Math.PI*2, _aiSr=40+Math.random()*50;
@@ -10449,7 +10477,8 @@ function updateDestiny(delta, t) {
         dBuildType=nextAutoIdle;
         var neededIdle=resourceNeeded(nextAutoIdle);
         if(!neededIdle){
-          var bPosIdle=chooseBuildPos(nextAutoIdle);
+          var _bZoneIdle = _D1_PENDING_BUILD_ZONE; _D1_PENDING_BUILD_ZONE = null;
+          var bPosIdle=chooseBuildPos(nextAutoIdle, _bZoneIdle);
           if(bPosIdle){
             dBuildPos.copy(bPosIdle); dBuildRot=Math.atan2(bPosIdle.x,bPosIdle.z);
             dTarget.copy(bPosIdle); dState='BUILD_WALK'; setStatus('MOVING');
@@ -10467,14 +10496,6 @@ function updateDestiny(delta, t) {
             return;
           }
         }
-      }
-      // Drain any pending art project first — walk to it
-      if(_pendingArtProject){
-        var _pap=_pendingArtProject; _pendingArtProject=null;
-        dArtPos.set(_pap.x,0,_pap.z); dArtPick=_pap.pick;
-        dTarget.copy(dArtPos); dState='ART_WALK'; setStatus('CREATING');
-        _d1Say('Found a good site. Creating.','chat',{lastEvent:'starting art project',question:'Short in-character line about placing an art piece.'});
-        return;
       }
       // Let brain suggest what to do when idle
       var brainIdle=DESTINY_BRAIN.idleAction();
