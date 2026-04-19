@@ -503,6 +503,9 @@
 <script src="OrbitControls.js"></script>
 <script>
 
+// ── MOBILE PERFORMANCE MODE ───────────────────────────────────────────
+var _MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 640;
+
 // ── BOOT TIMING ──────────────────────────────────────────────────────
 setTimeout(function () {
   document.getElementById('boot').classList.add('fade-out');
@@ -515,7 +518,7 @@ setTimeout(function () {
 
 // ── RENDERER ─────────────────────────────────────────────────────────
 var renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(_MOBILE ? 1 : Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
@@ -974,7 +977,7 @@ var _SKY = [
 var _stars=[];
 (function(){
   var sm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
-  for(var si=0;si<280;si++){
+  for(var si=0;si<(_MOBILE?60:280);si++){
     var sa=Math.random()*Math.PI*2, sb=(Math.random()-0.5)*Math.PI*0.9;
     var sr=190+Math.random()*30;
     var sx=Math.cos(sb)*Math.cos(sa)*sr, sy=Math.abs(Math.sin(sb))*sr+20, sz=Math.cos(sb)*Math.sin(sa)*sr;
@@ -2080,6 +2083,7 @@ for(var ri=0;ri<6;ri++){
   rainObjs.push({tex:rtex,tick:rain.tick}); rainMeshes.push(rm);
 }
 function triggerRain(sec){
+  if(_MOBILE) return;
   for(var i=0;i<rainMeshes.length;i++) rainMeshes[i].visible=true;
   rainTimer=sec||12;
 }
@@ -7084,6 +7088,8 @@ function updateResourceNodes(delta,t){
 // ── Bursts ────────────────────────────────────────────────────────────
 var bursts=[];
 function createBurst(pos, color, count) {
+  if(_MOBILE && bursts.length>30) return;
+  count = _MOBILE ? Math.max(1, Math.floor(count*0.3)) : count;
   for(var i=0;i<count;i++){
     var a2=Math.random()*Math.PI*2, el=(Math.random()-0.3)*Math.PI, spd=2.5+Math.random()*3.5;
     var vel=new THREE.Vector3(Math.cos(a2)*Math.cos(el)*spd, Math.abs(Math.sin(el))*spd+0.4, Math.sin(a2)*Math.cos(el)*spd);
@@ -7247,8 +7253,9 @@ function _updateNameplate(){
 
 // ── Build progress labels — float above structures under construction ──
 var _bpContainer=document.getElementById('build-progress-container');
-var _bpEls={}; // keyed by structure index
-function _updateBuildProgress(){
+var _bpEls={}, _bpTimer=0;
+function _updateBuildProgress(delta){
+  if(_MOBILE){ _bpTimer-=delta; if(_bpTimer>0) return; _bpTimer=2.0; }
   if(!_bpContainer) return;
   for(var bi=0;bi<structures.length;bi++){
     var s=structures[bi];
@@ -11193,7 +11200,7 @@ function animate() {
   _updateThoughtBubbles(delta);
   _updateDestinyTracker();
   _updateNameplate();
-  _updateBuildProgress();
+  _updateBuildProgress(delta);
   updatePOIDiscovery(delta);
   DESTINY_BRAIN.tick(delta);
   updateDungeonCamera(delta);
