@@ -19,8 +19,14 @@ if (!API_KEY) {
   process.exit(1);
 }
 
+// ── Enemy prompts — uncomment the one you want to generate ──────────────
+// Goblin Scout (grunt)
 var PROMPT = 'A small goblin scout warrior, fantasy game character, dark green skin, worn leather armor, holding a short dagger, low poly 3D game asset, standing upright in neutral pose, no background';
 var OUTPUT_PATH = path.join(__dirname, 'assets', 'goblin-scout.glb');
+
+// Void Wolf (champion) — based on the beast in the DESTINY Wrath artwork
+// var PROMPT = 'A massive quadruped wolf beast, thick grey-white fur, heavy muscular build, wide bear-like head, glowing red eyes, snarling open jaws with large ivory fangs, powerful hunched attack stance, low poly 3D game asset, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'void-wolf.glb');
 var POLL_INTERVAL_MS = 5000; // 5 seconds between polls
 
 // ── helpers ──────────────────────────────────────────────────────────────────

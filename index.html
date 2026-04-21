@@ -9345,6 +9345,92 @@ function buildAshmane(g) {
   return {glowMat:mGl,shell:torsoW,shell2:aura1,weapon:club,gRing:ring};
 }
 
+// ── VOID WOLF — massive grey-white quadruped, glowing red eyes, snarling ──
+function buildVoidWolf(g) {
+  var mFur  = sSt(0xb8bec4); // grey-white thick fur
+  var mDark = sSt(0x6e7880); // darker fur undersides
+  var mFang = sSt(0xeeeedd); // ivory fangs
+  var mNose = sSt(0x1a1010); // dark nose/paw pads
+  var mE    = _mkEye(0xff1a00); // glowing red eyes
+  var mGl   = _mkGlow(0xcc2200,0.18);
+  var mW    = sWr(0xdd4422);
+  var mGum  = sSt(0x8b1a1a); // gum/mouth interior
+
+  // ── BODY — long muscular torso, low slung ────────────────────
+  var body = mk(new THREE.BoxBufferGeometry(1.10,0.52,0.54),mFur,0,0.62,0.10); body.rotation.x=0.12; g.add(body);
+  g.add(mk(new THREE.BoxBufferGeometry(1.14,0.56,0.58),mW,0,0.62,0.10));
+  // Underbelly — darker
+  g.add(mk(new THREE.BoxBufferGeometry(0.80,0.12,0.50),mDark,0,0.38,0.10));
+  // Shoulder humps — massive forequarters
+  g.add(mk(new THREE.BoxBufferGeometry(0.48,0.34,0.50),mFur,-0.36,0.82,0.08));
+  g.add(mk(new THREE.BoxBufferGeometry(0.48,0.34,0.50),mFur, 0.36,0.82,0.08));
+  // Haunches — powerful rear
+  g.add(mk(new THREE.BoxBufferGeometry(0.44,0.30,0.48),mFur,-0.28,0.74,-0.38));
+  g.add(mk(new THREE.BoxBufferGeometry(0.44,0.30,0.48),mFur, 0.28,0.74,-0.38));
+  // Scruff / thick neck fur ridge
+  g.add(mk(new THREE.BoxBufferGeometry(0.36,0.30,0.38),mFur,0,0.95,0.36));
+  g.add(mk(new THREE.BoxBufferGeometry(0.28,0.22,0.28),mFur,0,1.08,0.52));
+
+  // ── HEAD — bear-wide, snarling low ──────────────────────────
+  var head = mk(new THREE.BoxBufferGeometry(0.52,0.40,0.50),mFur,0,1.02,0.76); head.rotation.x=-0.22; g.add(head);
+  g.add(mk(new THREE.BoxBufferGeometry(0.55,0.43,0.53),mW,0,1.02,0.76));
+  // Broad brow ridge
+  g.add(mk(new THREE.BoxBufferGeometry(0.50,0.10,0.16),mDark,0,1.22,0.88));
+  // Muzzle — pushed forward, wide
+  var muzz = mk(new THREE.BoxBufferGeometry(0.38,0.24,0.32),mFur,0,0.90,1.02); muzz.rotation.x=0.18; g.add(muzz);
+  g.add(mk(new THREE.BoxBufferGeometry(0.36,0.08,0.30),mGum,0,0.82,1.12)); // open lower jaw
+  // Nose
+  g.add(mk(new THREE.BoxBufferGeometry(0.14,0.08,0.06),mNose,0,0.98,1.14));
+  // Fangs — upper and lower
+  for(var _f=0;_f<4;_f++){
+    g.add(mk(new THREE.ConeBufferGeometry(0.024,0.12,4),mFang,-0.12+_f*0.08,0.88,1.16));
+    g.add(mk(new THREE.ConeBufferGeometry(0.018,0.09,4),mFang,-0.08+_f*0.06,0.80,1.14));
+  }
+  // Glowing red eyes — set deep under brow
+  g.add(mk(new THREE.SphereBufferGeometry(0.068,6,6),mE,-0.17,1.12,0.90));
+  g.add(mk(new THREE.SphereBufferGeometry(0.068,6,6),mE, 0.17,1.12,0.90));
+  g.add(mk(new THREE.SphereBufferGeometry(0.032,4,4),sSt(0x000000),-0.17,1.12,0.93));
+  g.add(mk(new THREE.SphereBufferGeometry(0.032,4,4),sSt(0x000000), 0.17,1.12,0.93));
+  // Pointed ears
+  g.add(mk(new THREE.ConeBufferGeometry(0.070,0.24,5),mFur,-0.20,1.36,0.72));
+  g.add(mk(new THREE.ConeBufferGeometry(0.070,0.24,5),mFur, 0.20,1.36,0.72));
+  g.add(mk(new THREE.ConeBufferGeometry(0.040,0.16,4),mDark,-0.20,1.36,0.73));
+  g.add(mk(new THREE.ConeBufferGeometry(0.040,0.16,4),mDark, 0.20,1.36,0.73));
+
+  // ── LEGS — four thick powerful legs ─────────────────────────
+  // Front legs
+  var fLL=mk(new THREE.CylinderBufferGeometry(0.10,0.08,0.58,6),mFur,-0.28,0.34,0.40); fLL.rotation.x=0.20; g.add(fLL);
+  var fLR=mk(new THREE.CylinderBufferGeometry(0.10,0.08,0.58,6),mFur, 0.28,0.34,0.40); fLR.rotation.x=0.20; g.add(fLR);
+  // Front paws
+  g.add(mk(new THREE.BoxBufferGeometry(0.18,0.08,0.24),mFur,-0.28,0.04,0.52));
+  g.add(mk(new THREE.BoxBufferGeometry(0.18,0.08,0.24),mFur, 0.28,0.04,0.52));
+  // Front claws
+  for(var _c=0;_c<3;_c++){
+    g.add(mk(new THREE.ConeBufferGeometry(0.014,0.08,3),mNose,-0.34+_c*0.06,0.02,0.62));
+    g.add(mk(new THREE.ConeBufferGeometry(0.014,0.08,3),mNose, 0.22+_c*0.06,0.02,0.62));
+  }
+  // Rear legs — angled
+  var rLL=mk(new THREE.CylinderBufferGeometry(0.10,0.08,0.60,6),mFur,-0.26,0.34,-0.42); rLL.rotation.x=-0.24; g.add(rLL);
+  var rLR=mk(new THREE.CylinderBufferGeometry(0.10,0.08,0.60,6),mFur, 0.26,0.34,-0.42); rLR.rotation.x=-0.24; g.add(rLR);
+  // Rear paws
+  g.add(mk(new THREE.BoxBufferGeometry(0.18,0.08,0.22),mFur,-0.26,0.04,-0.58));
+  g.add(mk(new THREE.BoxBufferGeometry(0.18,0.08,0.22),mFur, 0.26,0.04,-0.58));
+
+  // ── TAIL — thick, slightly raised ───────────────────────────
+  var tail=mk(new THREE.CylinderBufferGeometry(0.08,0.04,0.58,5),mFur,0,0.72,-0.64); tail.rotation.x=0.54; g.add(tail);
+  g.add(mk(new THREE.SphereBufferGeometry(0.06,5,5),mFur,0,0.88,-0.90));
+
+  // ── AURA — red void energy ───────────────────────────────────
+  var aura=new THREE.Mesh(new THREE.RingBufferGeometry(1.20,1.44,28),new THREE.MeshBasicMaterial({color:0xcc1100,wireframe:true,transparent:true,opacity:0.40}));
+  aura.rotation.x=-Math.PI/2; aura.position.y=0.04; g.add(aura);
+  var aura2=new THREE.Mesh(new THREE.RingBufferGeometry(1.50,1.64,28),new THREE.MeshBasicMaterial({color:0xff2200,transparent:true,opacity:0.15,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false}));
+  aura2.rotation.x=-Math.PI/2; aura2.position.y=0.03; g.add(aura2);
+
+  var glMesh=mk(new THREE.SphereBufferGeometry(1.20,8,8),mGl,0,0.70,0); g.add(glMesh);
+  var ring=_mkRing(0xcc1100,0.88,1.16,0.52); g.add(ring);
+  return {glowMat:mGl,shell:body,shell2:aura,weapon:null,gRing:ring};
+}
+
 // ── Native type registry ──────────────────────────────────────────────
 var _NATIVE_TYPES=[
   // grunt tier
@@ -9364,7 +9450,8 @@ var _NATIVE_TYPES=[
   {type:'stoneTroll',    rank:'champion', hp:36, spd:0.62, sc:1.28, alertR:6.5, builder:buildStoneTroll,    banTitle:'DANGER ZONE',      banSub:'Stone troll rules this territory'},
   {type:'shadowWraith',  rank:'champion', hp:28, spd:0.80, sc:1.12, alertR:10., builder:buildShadowWraith,  banTitle:'DARK PRESENCE',    banSub:'Shadow wraith haunts these lands'},
   {type:'crystalGolem',  rank:'champion', hp:36, spd:0.55, sc:1.22, alertR:7.0, builder:buildCrystalGolem,  banTitle:'CRYSTAL GUARDIAN', banSub:'Crystal golem defends the deposits'},
-  {type:'ashmaneTitan',  rank:'champion', hp:48, spd:0.58, sc:1.38, alertR:8.0, builder:buildAshmane,       banTitle:'ANCIENT WARLORD',  banSub:'Ashenmane Titan — elder warrior of the old world'}
+  {type:'ashmaneTitan',  rank:'champion', hp:48, spd:0.58, sc:1.38, alertR:8.0, builder:buildAshmane,       banTitle:'ANCIENT WARLORD',  banSub:'Ashenmane Titan — elder warrior of the old world'},
+  {type:'voidWolf',      rank:'champion', hp:44, spd:0.75, sc:1.18, alertR:11.0, builder:buildVoidWolf,      banTitle:'VOID BEAST',       banSub:'Ancient wolf creature — hunts without mercy'}
 ];
 var _NATIVE_CHAT={
   goblinScout:     'Goblin scout blocking my path. Quick skirmish.',
@@ -9380,7 +9467,8 @@ var _NATIVE_CHAT={
   stoneTroll:      'Stone troll territory. Maximum effort required.',
   shadowWraith:    'A wraith... dark magic. Full focus.',
   crystalGolem:    'Crystal golem guarding the deposits. This is a fight.',
-  ashmaneTitan:    'Ashenmane Titan. Ancient. I need everything I have.'
+  ashmaneTitan:    'Ashenmane Titan. Ancient. I need everything I have.',
+  voidWolf:        'A void wolf. Massive. Fast. Do not let it close the gap.'
 };
 
 function spawnThreat() {
