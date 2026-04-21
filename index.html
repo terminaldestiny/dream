@@ -508,6 +508,7 @@
 
 <script src="three.min.js"></script>
 <script src="OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 
 // ── MOBILE PERFORMANCE MODE ───────────────────────────────────────────
@@ -529,6 +530,26 @@ var renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(_MOBILE ? 1 : Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+
+// ── GLB ENEMY PRELOAD ─────────────────────────────────────────────────
+// If assets/goblin-scout.glb exists (generated via generate-enemy.js),
+// it replaces the wireframe goblinScout with the AI-generated 3D model.
+var _goblinGLB = null;
+(function(){
+  if(typeof THREE.GLTFLoader==='undefined') return;
+  var _gl=new THREE.GLTFLoader();
+  _gl.load('/assets/goblin-scout.glb', function(gltf){
+    // Convert MeshStandardMaterial → MeshBasicMaterial (scene uses no lights)
+    gltf.scene.traverse(function(child){
+      if(child.isMesh&&child.material){
+        var col=child.material.color?child.material.color.getHex():0x3d6b28;
+        child.material=new THREE.MeshBasicMaterial({color:col});
+      }
+    });
+    _goblinGLB=gltf.scene;
+    console.log('[DESTINY] Goblin scout GLB loaded — AI model active');
+  }, undefined, function(){ /* file not yet generated — silent */ });
+})();
 
 // ── SCENE ────────────────────────────────────────────────────────────
 var scene = new THREE.Scene();
@@ -8085,6 +8106,21 @@ function _mkEye(col){ return new THREE.MeshBasicMaterial({color:col,blending:THR
 
 // ── GOBLIN SCOUT — feral, hunched, serrated bone dagger ───────────────
 function buildGoblinScout(g) {
+  // Use AI-generated GLB if available (run generate-enemy.js to create it)
+  if(_goblinGLB){
+    var _clone=_goblinGLB.clone(true);
+    // Scale so the model fits ~1.4 units tall (adjust if model looks too big/small)
+    _clone.scale.setScalar(0.72);
+    _clone.position.y=0;
+    g.add(_clone);
+    var mGl=_mkGlow(0x99dd33,0.16);
+    var _gs=mk(new THREE.SphereBufferGeometry(0.52,7,7),mGl,0,0.76,0); g.add(_gs);
+    var _gr=_mkRing(0x88cc44,0.34,0.52,0.50); g.add(_gr);
+    // Shell needed for dissolve effect — invisible box at body height
+    var _sh=mk(new THREE.BoxBufferGeometry(0.28,0.36,0.20),new THREE.MeshBasicMaterial({color:0x2e5010,transparent:true,opacity:0}),0,0.72,0);
+    g.add(_sh);
+    return {glowMat:mGl,shell:_sh,shell2:null,weapon:null,gRing:_gr};
+  }
   var mB=sSt(0x2e5010),mA=sSt(0x446618),mSk=sSt(0x3d6b28),mW=sWr(0x7acc55),mE=_mkEye(0xffee00);
   var mGl=_mkGlow(0x99dd33,0.16); var mBone=sSt(0xddccaa); var mBld=sSt(0x550808);
   // Scrawny hunched legs with knee joints
