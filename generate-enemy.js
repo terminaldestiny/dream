@@ -19,14 +19,77 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-// ── Enemy prompts — uncomment the one you want to generate ──────────────
-// Goblin Scout (grunt)
-var PROMPT = 'A small goblin scout warrior, fantasy game character, dark green skin, worn leather armor, holding a short dagger, low poly 3D game asset, standing upright in neutral pose, no background';
-var OUTPUT_PATH = path.join(__dirname, 'assets', 'goblin-scout.glb');
+// ── Enemy prompts — uncomment ONE block to generate that enemy ───────────
+// Run: node generate-enemy.js
+// Each costs ~5 Meshy credits. Generate one at a time.
 
-// Void Wolf (champion) — based on the beast in the DESTINY Wrath artwork
-// var PROMPT = 'A massive quadruped wolf beast, thick grey-white fur, heavy muscular build, wide bear-like head, glowing red eyes, snarling open jaws with large ivory fangs, powerful hunched attack stance, low poly 3D game asset, no background';
-// var OUTPUT_PATH = path.join(__dirname, 'assets', 'void-wolf.glb');
+// GRUNT TIER ──────────────────────────────────────────────────────────────
+
+// Goblin Scout
+// var PROMPT = 'A small goblin scout warrior, fantasy game character, dark green skin, worn leather armor, holding a short dagger, low poly 3D game asset, standing upright in neutral pose, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'goblin-scout.glb');
+
+// Forest Ranger
+// var PROMPT = 'A scarred human forest ranger, weathered green cloak, leather chest armor, holding a longbow with arrow nocked, low poly 3D fantasy game character, standing in ready stance, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'forest-ranger.glb');
+
+// WARRIOR TIER ────────────────────────────────────────────────────────────
+
+// Tribe Soldier
+// var PROMPT = 'A tribal warrior with dark warpaint on face, bone necklace, leather shoulder armor, wielding a hand axe, muscular build, low poly 3D fantasy game character, neutral standing pose, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'tribe-soldier.glb');
+
+// Orc Guard
+// var PROMPT = 'A hulking orc guard, dark green skin, blood-red eyes, heavy spiked iron chest plate, spiked pauldrons, holding a skull-studded club, low poly 3D fantasy game enemy, standing pose, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'orc-guard.glb');
+
+// Lizardman Hunter
+// var PROMPT = 'A lizardman hunter, scaly dark teal skin, yellow slit eyes, light leather armor, holding twin curved blades, athletic build, low poly 3D fantasy game character, neutral standing pose, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'lizardman-hunter.glb');
+
+// Bone Skeleton
+// var PROMPT = 'An undead skeleton warrior, exposed yellowed bones, tattered black cloak, cracked ribcage, holding a rusty sword and broken shield, glowing eye sockets, low poly 3D fantasy game enemy, standing pose, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'bone-skeleton.glb');
+
+// ELITE TIER ──────────────────────────────────────────────────────────────
+
+// Stone Warden
+// var PROMPT = 'A stone warden guardian, body partially made of rock and stone, heavy grey stone armor plates, cracked stone skin with glowing cracks, wielding a stone war hammer, low poly 3D fantasy game enemy, standing pose, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'stone-warden.glb');
+
+// Dwarf Sentinel
+// var PROMPT = 'A stocky dwarf sentinel, thick braided red beard, full iron plate armor with rivets, wide-brimmed battle helmet, gripping a war axe and tower shield, low poly 3D fantasy game character, standing pose, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'dwarf-sentinel.glb');
+
+// Mercenary
+// var PROMPT = 'A battle-hardened mercenary soldier, scarred face, mismatched armor pieces, dark leather coat, holding a longsword, crossbow on back, low poly 3D fantasy game character, neutral standing pose, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'mercenary.glb');
+
+// Cave Spider
+// var PROMPT = 'A giant cave spider creature, eight legs, dark brown and black segmented body, multiple red eyes, large curved fangs dripping venom, low poly 3D fantasy game enemy creature, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'cave-spider.glb');
+
+// CHAMPION TIER ───────────────────────────────────────────────────────────
+
+// Stone Troll
+// var PROMPT = 'A massive stone troll, enormous rock-like body, grey cracked skin like boulders, hunched posture, dragging a giant hewn stone club, small red eyes, low poly 3D fantasy game boss enemy, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'stone-troll.glb');
+
+// Shadow Wraith
+// var PROMPT = 'A shadow wraith ghost, dark ethereal tattered cloak dissolving into black smoke, glowing purple eyes, skeletal hands reaching out, floating off the ground, low poly 3D fantasy game boss enemy, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'shadow-wraith.glb');
+
+// Crystal Golem
+// var PROMPT = 'A crystal golem made entirely of sharp blue gemstone shards, angular body with glowing blue core in chest, jagged crystal arms, heavy and imposing build, low poly 3D fantasy game boss enemy, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'crystal-golem.glb');
+
+// Ashenmane Titan
+// var PROMPT = 'An ancient titan warlord, enormous muscular humanoid, ash-grey skin with ritual scars and orange glowing runes, massive horned war helmet, wielding a huge stone war club, low poly 3D fantasy game boss, no background';
+// var OUTPUT_PATH = path.join(__dirname, 'assets', 'ashmane-titan.glb');
+
+// Void Wolf (champion) — the beast from DESTINY Wrath artwork
+var PROMPT = 'A massive quadruped wolf beast, thick grey-white fur, heavy muscular build, wide bear-like head, glowing red eyes, snarling open jaws with large ivory fangs, powerful hunched attack stance, low poly 3D game asset, no background';
+var OUTPUT_PATH = path.join(__dirname, 'assets', 'void-wolf.glb');
 var POLL_INTERVAL_MS = 5000; // 5 seconds between polls
 
 // ── helpers ──────────────────────────────────────────────────────────────────
