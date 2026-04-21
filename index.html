@@ -10276,6 +10276,7 @@ function updateDestiny(delta, t) {
       createBurst(dGroup.position.clone().setY(0.6),destinyMind.theme.wire,28);
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
       personalityChat('finishBuild',dBuildType);
+      journalNote('✅ Built: '+dBuildType,'🏗'); _spawnThoughtBubble(dBuildType+' complete.');
       setStatus('BUILDING'); dSeqIdx++;
       if(dSeqIdx>=BUILD_SEQUENCE.length){
         // Refill personality traits from brain if provided
@@ -10293,6 +10294,7 @@ function updateDestiny(delta, t) {
               dBuildPos.copy(bPosA); dBuildRot=Math.atan2(bPosA.x,bPosA.z);
               dTarget.copy(bPosA); dState='BUILD_WALK'; setStatus('MOVING');
               personalityChat('startBuild',nextAuto);
+              journalNote('🚶 Walking to build: '+nextAuto,'🏗'); _spawnThoughtBubble('Building: '+nextAuto);
               return;
             }
           } else {
@@ -10349,7 +10351,7 @@ function updateDestiny(delta, t) {
         if(bPos){
           dBuildPos.copy(bPos); dBuildRot=(dBuildType==='townhall')?0:Math.atan2(bPos.x,bPos.z);
           dTarget.copy(bPos); dState='BUILD_WALK'; setStatus('MOVING');
-          if(dBuildType!=='townhall') personalityChat('startBuild',dBuildType);
+          if(dBuildType!=='townhall'){ personalityChat('startBuild',dBuildType); journalNote('🚶 Walking to build: '+dBuildType,'🏗'); _spawnThoughtBubble('Building: '+dBuildType); }
         } else {dTimer=8;}
       } else {
         var nIdx=findFreeNode(needed);
@@ -10643,6 +10645,7 @@ function updateDestiny(delta, t) {
             dBuildPos.copy(bPosIdle); dBuildRot=Math.atan2(bPosIdle.x,bPosIdle.z);
             dTarget.copy(bPosIdle); dState='BUILD_WALK'; setStatus('MOVING');
             personalityChat('startBuild',nextAutoIdle);
+            journalNote('🚶 Walking to build: '+nextAutoIdle,'🏗'); _spawnThoughtBubble('Building: '+nextAutoIdle);
             return;
           }
         } else {
@@ -10828,10 +10831,10 @@ function updateDestiny(delta, t) {
       } else if(dArtPick==='_terraform_crater') terrainCrater(_apx,_apz,5+Math.random()*4);
       else executeArtProject(_apx,_apz,dArtPick);
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
+      journalNote('✅ Placed: '+dArtPick,'🎨'); _spawnThoughtBubble(dArtPick+' placed.');
       // Head home or linger briefly
       dTarget.set(1.5,0,1.5);
       dState='EXPLORE_RETURN'; setStatus('RETURNING');
-      destinyChat('Done. Heading back.');
     }
 
   // ── SCOUT ─────────────────────────────────────────────────────────────
