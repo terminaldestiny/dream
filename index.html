@@ -2467,14 +2467,13 @@ var buildingFootprints=[]; // {x,z,r} placed building footprints for collision
 
 var BUILD_SEQUENCE=[
   'townhall',
-  'watchtower','watchtower',
+  'watchtower','palisade',
   'market',
   'barracks','farm',
-  'well',
   'workshop',
-  'watchtower','watchtower',
   'tavern',
-  'forge','archive',
+  'lighthouse','forge',
+  'archive',
   'gate',
   'battlewall','battlewall','battlewall','battlewall',
   'observatory',
@@ -2483,7 +2482,7 @@ var BUILD_SEQUENCE=[
   'gate',
   'battlewall','battlewall','battlewall','battlewall',
   'ballista','ballista',
-  'archive','watchtower',
+  'archive','watermill',
   'crystalforge'
 ];
 
@@ -5682,8 +5681,7 @@ function placeStructure(type,pos,rot,opts){
           var bankMsgs=['[ RESOURCE VAULT ] The door weighs more than everything inside it. For now.','Vault sealed. The resources are safe. I\'m the only one who knows the combination.','Bank standing. Stone walls, iron bars, one door. Nothing gets out without my authorization.'];
           destinyChat(bankMsgs[Math.floor(Math.random()*bankMsgs.length)]);
         }
-        // Agent terrain shaping — happens after build, near build site
-        agentTerraformNear(pos.x, pos.z, type);
+        // Terraforming removed — world is shaped by DESTINY's art, not scripted terrain
       }
       setTimeout(rebuildNetworkLines,100);
     }
@@ -7774,11 +7772,19 @@ function pickAutonomousBuild() {
   // Let DESTINY_BRAIN override
   var brainPick = DESTINY_BRAIN.decideBuild ? DESTINY_BRAIN.decideBuild(scoreBuildsForPersonality()) : null;
   if(brainPick) return brainPick;
-  // Pick from top-5 with weighted random (to avoid determinism)
+  // Count existing structures to dampen over-represented types
+  var existingCounts={};
+  for(var _ec=0;_ec<structures.length;_ec++){var _es=structures[_ec];if(_es.alive)existingCounts[_es.type]=(existingCounts[_es.type]||0)+1;}
   var scored = scoreBuildsForPersonality();
-  var pool = scored.slice(0,5);
+  // Apply diminishing returns: each extra copy of a type after 2 halves its score
+  for(var i=0;i<scored.length;i++){
+    var cnt=existingCounts[scored[i].type]||0;
+    if(cnt>2) scored[i].score*=Math.pow(0.45,cnt-2);
+  }
+  scored.sort(function(a,b){return b.score-a.score;});
+  var pool = scored.slice(0,6);
   var totalW = 0;
-  for(var i=0;i<pool.length;i++) totalW+=pool[i].score;
+  for(var pi=0;pi<pool.length;pi++) totalW+=pool[pi].score;
   var r=Math.random()*totalW;
   for(var j=0;j<pool.length;j++){
     r-=pool[j].score;
@@ -7862,7 +7868,7 @@ var _D1_CHAT_GAP_MS = 150000; // minimum 150s between AI chat messages
 function _d1State(extra) {
   var s = {
     resources: {
-      compute: Math.round(res.compute||0),
+      '$DESTINY': Math.round(res.compute||0),
       wood:    Math.round(res.wood||0),
       stone:   Math.round(res.stone||0),
       lumite:  Math.round(res.lumite||0)
@@ -7895,6 +7901,8 @@ function _d1Think(hook, extra, cb) {
         var _resp = r.response||null;
         if(_resp){
           _spawnDecisionRipple(_RIPPLE_COLORS[_jHook]||0x00ff88);
+          // Normalise resource name — AI may say "compute" from training data
+          _resp=_resp.replace(/\bcompute\b/gi,'$DESTINY');
         }
         cb(_resp);
       } catch(e) { cb(null); }
@@ -9570,15 +9578,12 @@ function spawnThreat() {
   }
   // Keep natives from spawning inside base
   if(homePos.length()<12){ homePos.normalize().multiplyScalar(12+Math.random()*8); }
-  // Choose type based on game progression
+  // All ranks spawn from the start — stronger enemies are just rarer
   var pool=[];
-  var _gr=['grunt','warrior','elite','champion'];
   for(var _pi=0;_pi<_NATIVE_TYPES.length;_pi++){
-    var _nt=_NATIVE_TYPES[_pi], _rk=_nt.rank;
-    if(_rk==='grunt') pool.push(_nt,_nt); // always common
-    if(_rk==='warrior'&&aliveCount>=5) pool.push(_nt,_nt);
-    if(_rk==='elite'&&aliveCount>=10) pool.push(_nt);
-    if(_rk==='champion'&&aliveCount>=18) pool.push(_nt);
+    var _nt=_NATIVE_TYPES[_pi];
+    var _w=_nt.rank==='grunt'?8:_nt.rank==='warrior'?4:_nt.rank==='elite'?2:1;
+    for(var _wi=0;_wi<_w;_wi++) pool.push(_nt);
   }
   if(pool.length===0) pool=[_NATIVE_TYPES[0]];
   var def=pool[Math.floor(Math.random()*pool.length)];
@@ -10120,24 +10125,15 @@ function _pulseBarrier(zone,flashCol,count){
 function updateZoneBarriers(t){
   for(var zi=0;zi<WORLD_ZONES.length;zi++){
     var zone=WORLD_ZONES[zi];
-    if(zone.unlocked) continue;
-    // Animate cap glow pulse
-    if(zone.group){
-      var _gp=0.55+Math.sin(t*2.8+zi*1.4)*0.25;
-      zone.group.traverse(function(m){
-        if(m.isMesh&&m.material&&m.material.blending===THREE.AdditiveBlending) m.material.opacity=_gp;
-      });
-    }
-    // Trigger boss spawn when agent approaches
-    if(!zone.bossSpawned&&dGroup){
+    // Trigger boss spawn when agent approaches zone boundary
+    if(!zone.bossSpawned&&!zone.unlocked&&dGroup){
       var _dd=Math.sqrt(dGroup.position.x*dGroup.position.x+dGroup.position.z*dGroup.position.z);
       if(_dd>=zone.radius-12) _spawnZoneBoss(zone);
     }
   }
 }
 
-// Build all barriers and start
-for(var _zbi=0;_zbi<WORLD_ZONES.length;_zbi++) _buildZoneBarrier(WORLD_ZONES[_zbi]);
+// Zone barriers removed — world is open, bosses still spawn at zone boundaries
 
 // ════════════════════════════════════════════════════════════════════
 // ── SAVE / LOAD ───────────────────────────────────────────────────────
@@ -10186,11 +10182,8 @@ function _tdLoad(){
 
   // Restore art placements (instant, no animation)
   if(data.art){data.art.forEach(function(a){
-    if(!a||!a.pick) return;
-    if(a.pick==='_terraform_lake') terrainLake(a.x,a.z,7);
-    else if(a.pick==='_terraform_river'&&a.ra!=null) terrainRiver(a.x,a.z,a.x+Math.cos(a.ra)*(a.rl||22),a.z+Math.sin(a.ra)*(a.rl||22),2.5);
-    else if(a.pick==='_terraform_crater') terrainCrater(a.x,a.z,6);
-    else executeArtProject(a.x,a.z,a.pick);
+    if(!a||!a.pick||a.pick.indexOf('_terraform')===0) return;
+    executeArtProject(a.x,a.z,a.pick);
     _artLog.push(a);
   });}
 
@@ -10765,13 +10758,6 @@ function updateDestiny(delta, t) {
           dTarget.copy(dArtPos); dState='ART_WALK'; setStatus('CREATING');
           _d1Say('Something belongs here.','chat',{lastEvent:'ai suggested art',question:'Short line about placing art.'});
         } else { dTimer=8; }
-      } else if(brainIdle==='terraform'){
-        var tx2=(Math.random()-0.5)*60, tz2=(Math.random()-0.5)*60;
-        var ttype2=['lake','river','crater'][Math.floor(Math.random()*3)];
-        // Walk to the terraform site first
-        dArtPos.set(tx2,0,tz2); dArtPick='_terraform_'+ttype2;
-        dTarget.copy(dArtPos); dState='ART_WALK'; setStatus('TERRAFORMING');
-        _d1Say('Reshaping the land.','chat',{lastEvent:'terraforming',question:'Short line about reshaping terrain.'});
       } else if(brainIdle==='note'){
         var nspot=findArtSpot();
         if(nspot){
@@ -10919,13 +10905,7 @@ function updateDestiny(delta, t) {
     if(dTimer<=0){
       var _apx=dGroup.position.x, _apz=dGroup.position.z;
       // Handle terraform types
-      if(dArtPick==='_terraform_lake'){   terrainLake(_apx,_apz,6+Math.random()*5); _artLog.push({pick:dArtPick,x:_apx,z:_apz}); }
-      else if(dArtPick==='_terraform_river'){
-        var _ra=Math.random()*Math.PI*2, _rl=18+Math.random()*14;
-        terrainRiver(_apx,_apz,_apx+Math.cos(_ra)*_rl,_apz+Math.sin(_ra)*_rl,2+Math.random()*1.5);
-        _artLog.push({pick:dArtPick,x:_apx,z:_apz,ra:_ra,rl:_rl});
-      } else if(dArtPick==='_terraform_crater'){ terrainCrater(_apx,_apz,5+Math.random()*4); _artLog.push({pick:dArtPick,x:_apx,z:_apz}); }
-      else{ executeArtProject(_apx,_apz,dArtPick); _artLog.push({pick:dArtPick,x:_apx,z:_apz}); }
+      executeArtProject(_apx,_apz,dArtPick); _artLog.push({pick:dArtPick,x:_apx,z:_apz});
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
       journalNote('✅ Placed: '+dArtPick,'🎨'); _spawnThoughtBubble(dArtPick+' placed.');
       // Head home or linger briefly
