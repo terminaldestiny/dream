@@ -9626,7 +9626,229 @@ function spawnThreat() {
     chargeTimer:0});
 }
 
-function dissolveThreat(th) { if(!th.alive)return; th.alive=false; th.dissolving=true; th.dissolveTimer=0; }
+function dissolveThreat(th) {
+  if(!th.alive) return false;
+  // Bone skeleton intercept — first death collapses it, second kills it
+  if(th.type==='boneSkeleton'&&!th._reassembled&&!th._reassembling){
+    th._reassembling=true; th._reassembleTimer=0; th._origScale=th.group.scale.x;
+    th.hp=1;
+    createBurst(th.group.position.clone().setY(1.0),0x8888ff,15);
+    destinyChat('Skeleton collapsed... still moving.');
+    return false;
+  }
+  th.alive=false; th.dissolving=true; th.dissolveTimer=0;
+  return true;
+}
+
+// ── Spawn a miniature threat (summoned reinforcement) ─────────────────
+function _spawnMinithreat(pos, rank) {
+  if(threats.length>=28) return;
+  var _cands=[];
+  for(var _ci=0;_ci<_NATIVE_TYPES.length;_ci++) if(_NATIVE_TYPES[_ci].rank===rank) _cands.push(_NATIVE_TYPES[_ci]);
+  if(!_cands.length) return;
+  var def=_cands[Math.floor(Math.random()*_cands.length)];
+  var g=new THREE.Group(); var built=def.builder(g);
+  g.scale.setScalar(def.sc*0.85); g.position.copy(pos); scene.add(g);
+  createBurst(pos.clone().setY(1.2),0xff4400,12);
+  threats.push({group:g,glowMat:built.glowMat,shell:built.shell,shell2:built.shell2,
+    weapon:built.weapon,gRing:built.gRing,pos:pos.clone(),
+    alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
+    hp:def.hp,maxHp:def.hp,type:def.type,rank:def.rank,speedMult:def.spd,
+    walkPhase:Math.random()*Math.PI*2,homePos:pos.clone(),patrolTarget:pos.clone(),
+    nState:'ALERT',alertRange:def.alertR,alertTimer:0,atkCooldown:0,
+    atkRate:def.rank==='champion'?1.6:def.rank==='elite'?2.2:def.rank==='warrior'?2.8:3.6,
+    atkDmg:def.rank==='champion'?20:def.rank==='elite'?12:def.rank==='warrior'?7:4,
+    chargeTimer:0,_summoned:true});
+}
+
+// ── Spawn a small cave spiderling (offspring on spider death) ─────────
+function _spawnSpiderling(pos) {
+  if(threats.length>=28) return;
+  var g=new THREE.Group(); var built=buildCaveSpider(g);
+  g.scale.setScalar(0.38); g.position.copy(pos); scene.add(g);
+  threats.push({group:g,glowMat:built.glowMat,shell:built.shell,shell2:null,
+    weapon:null,gRing:built.gRing,pos:pos.clone(),
+    alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
+    hp:1,maxHp:1,type:'caveSpider',rank:'grunt',speedMult:1.7,
+    walkPhase:Math.random()*Math.PI*2,homePos:pos.clone(),patrolTarget:pos.clone(),
+    nState:'ALERT',alertRange:9,alertTimer:0,atkCooldown:0,atkRate:2.0,atkDmg:2,
+    chargeTimer:0,_spiderling:true});
+}
+
+// ── Ranged projectile visual (instant trail + impact burst) ───────────
+function _fireRangedProjectile(from, to, color) {
+  var mid=from.clone().lerp(to,0.5); mid.y=Math.max(mid.y,1.2);
+  createBurst(mid,color,6);
+  createBurst(to.clone().setY(0.8),0xffffff,8);
+}
+
+// ── Per-enemy special behavior dispatcher ────────────────────────────
+function _updateThreatBehavior(th, delta, t, dPos, dDist) {
+  switch(th.type){
+
+    case 'goblinScout':
+      if(!th._fleeing&&th.hp<=2){
+        th._fleeing=true; th.speedMult*=1.6; th.nState='RETURN';
+        createBurst(th.group.position.clone().setY(0.8),0x88ff44,10);
+        destinyChat('Goblin scout fleeing — calling for backup!');
+      }
+      if(th._fleeing&&!th._reinforced&&dPos&&dDist>th.alertRange*3){
+        th._reinforced=true;
+        _spawnMinithreat(th.group.position.clone(),'warrior');
+        dissolveThreat(th);
+      }
+      break;
+
+    case 'forestRanger':
+      th._arrowCd=(th._arrowCd===undefined?2:th._arrowCd)-delta;
+      if(dPos&&dDist>3&&dDist<16&&(th.nState==='ALERT'||th.nState==='ATTACK')&&th._arrowCd<=0){
+        th._arrowCd=3.0;
+        _fireRangedProjectile(th.group.position.clone().setY(1.2),dPos.clone().setY(1.0),0xddbb44);
+        destinyHP=Math.max(0,destinyHP-3);
+        _spawnDmgNumber(dPos.clone().setY(1.8),'-3 [ARROW]');
+        triggerHitFlash('rgba(200,160,0,0.15)');
+        if(dGroup&&dState!=='DEFEND_WALK'&&dState!=='DEFEND_ATTACK'&&dState!=='STUNNED'){
+          dCurrentThreat=th; dState='DEFEND_WALK'; setStatus('DEFENDING');
+          destinyChat('Arrow hit. Ranger attacking from range.');
+        }
+        if(destinyHP<=0){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
+      }
+      break;
+
+    case 'tribeSoldier':
+      if(!th._berserked&&th.hp<=Math.ceil(th.maxHp*0.5)){
+        th._berserked=true; th.speedMult*=1.35; th.atkDmg=Math.ceil(th.atkDmg*1.5);
+        if(th.glowMat) th.glowMat.color.setHex(0xff2200);
+        createBurst(th.group.position.clone().setY(1.2),0xff2200,20);
+        destinyChat('Tribe soldier enraged!');
+      }
+      break;
+
+    case 'lizardmanHunter':
+      if(th._strafeAngle===undefined) th._strafeAngle=Math.random()*Math.PI*2;
+      th._dashCd=(th._dashCd===undefined?3:th._dashCd)-delta;
+      if(dPos&&dDist>2&&dDist<10&&th.nState==='ALERT'){
+        th._strafeAngle+=delta*1.2*(th._strafeDir||1);
+        var _slx=dPos.x+Math.cos(th._strafeAngle)*4, _slz=dPos.z+Math.sin(th._strafeAngle)*4;
+        var _sdx=_slx-th.group.position.x, _sdz=_slz-th.group.position.z;
+        var _sdl=Math.sqrt(_sdx*_sdx+_sdz*_sdz)||1;
+        th.group.position.x+=_sdx/_sdl*THREAT_SPEED*th.speedMult*delta;
+        th.group.position.z+=_sdz/_sdl*THREAT_SPEED*th.speedMult*delta;
+        th.pos.copy(th.group.position);
+        if(th._dashCd<=0){
+          th._dashCd=4+Math.random()*2; th._strafeDir=(th._strafeDir||1)*-1;
+          th.nState='ATTACK';
+          createBurst(th.group.position.clone().setY(0.5),0x40cccc,10);
+        }
+      }
+      break;
+
+    case 'stoneWarden':
+      if(!th._fortified&&th.hp<=Math.ceil(th.maxHp*0.5)){
+        th._fortified=true; th.speedMult*=0.5; th._dmgReduce=0.5;
+        if(th.glowMat) th.glowMat.color.setHex(0x44aaff);
+        if(th.gRing) th.gRing.material.color.setHex(0x44aaff);
+        createBurst(th.group.position.clone().setY(1.2),0x4488ff,18);
+        destinyChat('Stone warden fortified. Hits partially blocked.');
+      }
+      break;
+
+    case 'mercenary':
+      if(th._mercPhase===undefined){th._mercPhase='wait'; th._mercTimer=2;}
+      th._mercTimer-=delta;
+      if(th._mercPhase==='attack'&&th.nState==='ATTACK'&&th._mercTimer<=0){
+        th._mercPhase='backoff'; th._mercTimer=2.5; th.nState='ALERT';
+        if(dPos){
+          var _mbx=th.group.position.x-dPos.x, _mbz=th.group.position.z-dPos.z;
+          var _mbl=Math.sqrt(_mbx*_mbx+_mbz*_mbz)||1;
+          th.group.position.x+=_mbx/_mbl*4; th.group.position.z+=_mbz/_mbl*4;
+          th.pos.copy(th.group.position);
+        }
+        createBurst(th.group.position.clone().setY(0.5),0x666666,8);
+      } else if(th._mercPhase==='backoff'&&th._mercTimer<=0){
+        th._mercPhase='wait'; th._mercTimer=1.5+Math.random()*1.5;
+      } else if(th._mercPhase==='wait'&&th._mercTimer<=0&&dDist<10){
+        th._mercPhase='attack'; th.nState='ATTACK'; th._mercTimer=0.8;
+      }
+      break;
+
+    case 'shadowWraith':
+      if(th._phaseCd===undefined) th._phaseCd=10;
+      th._phaseCd-=delta;
+      if(th._phasing){
+        th._phaseT=(th._phaseT||1.5)-delta;
+        th._invincible=true;
+        if(th.shell&&th.shell.material) th.shell.material.opacity=Math.max(0,(th.shell.material.opacity||1)-delta*2.5);
+        if(th._phaseT<=0){
+          th._phasing=false; th._invincible=false; th._phaseCd=10;
+          if(dPos&&dGroup){
+            var _wangle=Math.atan2(dGroup.position.x,dGroup.position.z)+Math.PI;
+            th.group.position.set(dPos.x+Math.cos(_wangle)*2.5,0,dPos.z+Math.sin(_wangle)*2.5);
+            th.pos.copy(th.group.position);
+          }
+          if(th.shell&&th.shell.material) th.shell.material.opacity=1.0;
+          th.nState='ATTACK';
+          createBurst(th.group.position.clone().setY(1.2),0xaa00ff,22);
+          destinyChat('Wraith phased behind me!');
+        }
+      } else if(th._phaseCd<=0&&(th.nState==='ALERT'||th.nState==='ATTACK')){
+        th._phasing=true; th._phaseT=1.5;
+        createBurst(th.group.position.clone().setY(1.0),0x8800cc,15);
+      }
+      break;
+
+    case 'voidWolf':
+      if(th._howlCd===undefined) th._howlCd=8;
+      th._howlCd-=delta;
+      if(th._howlCd<=0&&(th.nState==='ALERT'||th.nState==='ATTACK')){
+        th._howlCd=15;
+        var _hwp=th.group.position.clone();
+        _hwp.x+=Math.cos(Math.random()*Math.PI*2)*5; _hwp.z+=Math.sin(Math.random()*Math.PI*2)*5;
+        _spawnMinithreat(_hwp,'grunt');
+        createBurst(th.group.position.clone().setY(1.5),0xff3300,22);
+        destinyChat('Void wolf howl — reinforcements summoned!');
+      }
+      if(!th._phase2&&th.hp<=Math.ceil(th.maxHp*0.5)){
+        th._phase2=true; th.speedMult*=1.4;
+        if(th.glowMat) th.glowMat.color.setHex(0xff1100);
+        createBurst(th.group.position.clone().setY(1.0),0xff0000,30);
+        destinyChat('Void wolf phase 2 — faster now!');
+      }
+      break;
+
+    case 'ashmane':
+      if(!th._warcried&&th.hp<=Math.ceil(th.maxHp*0.5)){
+        th._warcried=true;
+        for(var _ai=0;_ai<threats.length;_ai++){
+          if(threats[_ai]!==th&&threats[_ai].alive&&!threats[_ai].dissolving&&
+             th.group.position.distanceTo(threats[_ai].group.position)<20)
+            threats[_ai].nState='ALERT';
+        }
+        createBurst(th.group.position.clone().setY(1.5),0xffaa00,40);
+        destinyChat('Titan warcry! All nearby enemies alerted!');
+      }
+      th._slamCd=(th._slamCd===undefined?6:th._slamCd)-delta;
+      if(th.nState==='ATTACK'&&th._slamCd<=0&&dPos&&dDist<5){
+        th._slamCd=6;
+        createBurst(th.group.position.clone().setY(0.2),0xff6600,35);
+        createBurst(th.group.position.clone().setY(0.8),0xffaa00,20);
+        if(dDist<4){
+          destinyHP=Math.max(0,destinyHP-8);
+          _spawnDmgNumber(dPos.clone().setY(1.8),'-8 [SLAM]');
+          triggerHitFlash('rgba(255,100,0,0.25)');
+          if(dGroup&&dState!=='STUNNED'){dState='STUNNED';dTimer=3;setStatus('STUNNED');}
+        }
+        destinyChat('Ground slam!');
+      }
+      break;
+
+    case 'crystalGolem':
+      if(th._cgWin) th._cgWin-=delta;
+      if(th._cgWin<=0){th._cgHits=0;th._cgWin=0;}
+      if(th._shardCd) th._shardCd-=delta;
+      break;
+  }
+}
 
 // Find a native that Destiny should fight (ALERT/ATTACK state, within engage range)
 function findAlertThreat() {
@@ -9668,6 +9890,19 @@ function updateThreats(delta, t) {
     }
     if(!th.alive) continue;
     hasLive=true;
+    // Bone skeleton reassemble animation
+    if(th._reassembling){
+      th._reassembleTimer=(th._reassembleTimer||0)+delta;
+      th.group.rotation.x=Math.PI*0.42;
+      if(th._reassembleTimer>=3){
+        th._reassembling=false; th._reassembled=true; th.hp=3;
+        th.group.rotation.x=0; th.group.scale.setScalar(th._origScale||1);
+        th.nState='ALERT';
+        createBurst(th.group.position.clone().setY(1.0),0xaaaaff,25);
+        destinyChat('Skeleton reassembled. Hit it again.');
+      }
+      continue;
+    }
     // Glow + ring pulse
     if(th.glowMat) th.glowMat.opacity=0.08+Math.sin(t*3.0+th.wobble)*0.06;
     if(th.gRing)   th.gRing.material.opacity=0.32+Math.sin(t*2.5+th.wobble)*0.16;
@@ -9785,6 +10020,8 @@ function updateThreats(delta, t) {
         th.pos.copy(th.group.position);
       } else { th.nState='PATROL'; }
     }
+    // Special per-enemy behaviors
+    _updateThreatBehavior(th,delta,t,dPos,dDist);
   }
   if(threatFlash) threatFlash.classList.toggle('alert',hasLive);
 }
@@ -10619,12 +10856,29 @@ function updateDestiny(delta, t) {
             (function(_gm,_oh){ setTimeout(function(){ if(_gm) _gm.color.setHex(_oh); },180); })(dCurrentThreat.glowMat,_hitOrigHex);
           }
         }
-        // Deal damage and show real HP numbers
-        _sfxHit();
-        dCurrentThreat.hp--;
+        // Deal damage — check invincibility + damage reduction
+        var _hitLanded=!dCurrentThreat._invincible;
+        if(_hitLanded&&dCurrentThreat._dmgReduce) _hitLanded=Math.random()<dCurrentThreat._dmgReduce;
+        if(_hitLanded){ _sfxHit(); dCurrentThreat.hp--; }
+        // Crystal golem: shard burst when hit 3+ times within 5s
+        if(_hitLanded&&dCurrentThreat.type==='crystalGolem'){
+          if(!dCurrentThreat._cgWin||dCurrentThreat._cgWin<=0){dCurrentThreat._cgHits=0;dCurrentThreat._cgWin=5;}
+          dCurrentThreat._cgHits=(dCurrentThreat._cgHits||0)+1;
+          if(dCurrentThreat._cgHits>=3&&(!dCurrentThreat._shardCd||dCurrentThreat._shardCd<=0)){
+            dCurrentThreat._cgHits=0;dCurrentThreat._cgWin=0;dCurrentThreat._shardCd=8;
+            createBurst(dCurrentThreat.group.position.clone().setY(1.2),0x00ffff,40);
+            createBurst(dCurrentThreat.group.position.clone().setY(0.5),0x22cccc,25);
+            destinyHP=Math.max(0,destinyHP-6);
+            _spawnDmgNumber(dGroup.position.clone().setY(1.8),'-6 [SHARDS]');
+            triggerHitFlash('rgba(0,200,255,0.2)');
+            destinyChat('Crystal shard burst!');
+            if(destinyHP<=0){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
+          }
+        }
         var _hpAfter=Math.max(0,dCurrentThreat.hp);
         var _dmgLabel;
-        if(_hpAfter<=0) _dmgLabel='LETHAL';
+        if(!_hitLanded) _dmgLabel=dCurrentThreat._invincible?'INVINCIBLE':'RESISTED';
+        else if(_hpAfter<=0) _dmgLabel='LETHAL';
         else if(_hpAfter<=Math.ceil(dCurrentThreat.maxHp*0.25)) _dmgLabel='CRITICAL  '+_hpAfter+'/'+dCurrentThreat.maxHp;
         else _dmgLabel='-1  ['+_hpAfter+'/'+dCurrentThreat.maxHp+']';
         _spawnDmgNumber(_hitPos.clone().setY(2.0), _dmgLabel);
@@ -10645,11 +10899,29 @@ function updateDestiny(delta, t) {
           if(dCurrentThreat.isZoneBoss&&dCurrentThreat.zoneIdx>=0&&dCurrentThreat.zoneIdx<WORLD_ZONES.length){
             setTimeout(function(_zi){ return function(){ _unlockZone(WORLD_ZONES[_zi]); }; }(dCurrentThreat.zoneIdx), 600);
           }
-          dissolveThreat(dCurrentThreat); killCount++; if(killEl) killEl.textContent=killCount;
-          destinyHP=Math.max(10,destinyHP-8); dCurrentThreat=null;
-          if(dParts.sword) dParts.sword.visible=false;
-          destinyChat('Neutralized. Kill count: '+killCount+'. Back to construction.'); setStatus('PLANNING');
-          dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=4;
+          var _dct=dCurrentThreat;
+          var _killOk=dissolveThreat(_dct);
+          if(_killOk){
+            // Cave spider spawns offspring on death
+            if(_dct.type==='caveSpider'&&!_dct._spiderling){
+              var _nSp=1+Math.floor(Math.random()*2);
+              for(var _si=0;_si<_nSp;_si++){
+                var _sop=_dct.group.position.clone();
+                _sop.x+=(Math.random()-0.5)*3; _sop.z+=(Math.random()-0.5)*3;
+                _spawnSpiderling(_sop);
+              }
+              destinyChat('Cave spider spawned '+_nSp+' spiderlings!');
+            }
+            killCount++; if(killEl) killEl.textContent=killCount;
+            destinyHP=Math.max(10,destinyHP-8); dCurrentThreat=null;
+            if(dParts.sword) dParts.sword.visible=false;
+            destinyChat('Neutralized. Kill count: '+killCount+'. Back to construction.'); setStatus('PLANNING');
+            dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=4;
+          } else {
+            // Enemy intercept (bone skeleton reassembling, etc.)
+            dCurrentThreat=null; setStatus('PLANNING');
+            dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=2;
+          }
         } else {
           destinyChat('Still standing. Finishing this.'); destinyHP=Math.max(10,destinyHP-5);
           dState='DEFEND_WALK'; dTimer=0;
@@ -11137,10 +11409,10 @@ function updateBallistae(delta,t){
         fireBolt(bal.pos.clone().setY(0), nearest.group.position.clone());
         createBurst(nearest.group.position.clone().setY(1),0x44aaff,8);
         _sfxHit();
-        nearest.hp--;
+        if(!nearest._invincible) nearest.hp--;
         if(nearest.hp<=0&&nearest.alive){
-          dissolveThreat(nearest); killCount++; if(killEl) killEl.textContent=killCount;
-          destinyChat('Ballista hit. Clean.');
+          var _bkillOk=dissolveThreat(nearest);
+          if(_bkillOk){ killCount++; if(killEl) killEl.textContent=killCount; destinyChat('Ballista hit. Clean.'); }
         }
       }
     } else {
