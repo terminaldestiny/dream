@@ -531,6 +531,13 @@ renderer.setPixelRatio(_MOBILE ? 1 : Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// WebGL context loss — save state and reload to recover
+renderer.domElement.addEventListener('webglcontextlost', function(e){
+  e.preventDefault();
+  try{ if(typeof _tdSave==='function') _tdSave(); }catch(_){} // persist world before reload
+  setTimeout(function(){ location.reload(); }, 800);
+}, false);
+
 // ── GLB ENEMY PRELOAD ─────────────────────────────────────────────────
 // If assets/goblin-scout.glb exists (generated via generate-enemy.js),
 // it replaces the wireframe goblinScout with the AI-generated 3D model.
@@ -2258,6 +2265,7 @@ function stopHeavyRain(){
 
 // ── SOUND ENGINE ─────────────────────────────────────────────────────────
 var _sfxCtx=null, _windNode=null, _windGain=null, _rainNode=null, _rainGain=null;
+var _sfxThunderBufCache=null, _sfxWindBufCache=null, _sfxRainBufCache=null;
 
 function _sfxInit(){
   if(_sfxCtx) return;
@@ -2272,7 +2280,8 @@ function _sfxNoiseBuf(sec){
 
 function _sfxStartWind(){
   if(!_sfxCtx||_windNode) return;
-  _windNode=_sfxCtx.createBufferSource(); _windNode.buffer=_sfxNoiseBuf(4); _windNode.loop=true;
+  if(!_sfxWindBufCache) _sfxWindBufCache=_sfxNoiseBuf(4);
+  _windNode=_sfxCtx.createBufferSource(); _windNode.buffer=_sfxWindBufCache; _windNode.loop=true;
   var lp=_sfxCtx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=350;
   _windGain=_sfxCtx.createGain(); _windGain.gain.value=0.04;
   _windNode.connect(lp); lp.connect(_windGain); _windGain.connect(_sfxCtx.destination);
@@ -2281,7 +2290,8 @@ function _sfxStartWind(){
 
 function _sfxStartRain(){
   if(!_sfxCtx||_rainNode) return;
-  _rainNode=_sfxCtx.createBufferSource(); _rainNode.buffer=_sfxNoiseBuf(4); _rainNode.loop=true;
+  if(!_sfxRainBufCache) _sfxRainBufCache=_sfxNoiseBuf(4);
+  _rainNode=_sfxCtx.createBufferSource(); _rainNode.buffer=_sfxRainBufCache; _rainNode.loop=true;
   var bp=_sfxCtx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2200; bp.Q.value=0.4;
   _rainGain=_sfxCtx.createGain(); _rainGain.gain.value=0.001;
   _rainNode.connect(bp); bp.connect(_rainGain); _rainGain.connect(_sfxCtx.destination);
@@ -2309,7 +2319,8 @@ function _sfxBuildDone(){
 
 function _sfxThunderBoom(){
   if(!_sfxCtx) return;
-  var src=_sfxCtx.createBufferSource(); src.buffer=_sfxNoiseBuf(2);
+  if(!_sfxThunderBufCache) _sfxThunderBufCache=_sfxNoiseBuf(2);
+  var src=_sfxCtx.createBufferSource(); src.buffer=_sfxThunderBufCache;
   var lp=_sfxCtx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=130;
   var g=_sfxCtx.createGain(); g.gain.setValueAtTime(0.55,_sfxCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001,_sfxCtx.currentTime+2.0);
@@ -7186,14 +7197,17 @@ function updateResourceNodes(delta,t){
 
 // ── Bursts ────────────────────────────────────────────────────────────
 var bursts=[];
+var _burstGeo=new THREE.SphereBufferGeometry(0.065,4,4); // shared — never disposed
+var _BURST_CAP=_MOBILE?40:280;
 function createBurst(pos, color, count) {
-  if(_MOBILE && bursts.length>30) return;
+  if(bursts.length>=_BURST_CAP) return;
   count = _MOBILE ? Math.max(1, Math.floor(count*0.3)) : count;
+  count = Math.min(count, _BURST_CAP-bursts.length);
   for(var i=0;i<count;i++){
     var a2=Math.random()*Math.PI*2, el=(Math.random()-0.3)*Math.PI, spd=2.5+Math.random()*3.5;
     var vel=new THREE.Vector3(Math.cos(a2)*Math.cos(el)*spd, Math.abs(Math.sin(el))*spd+0.4, Math.sin(a2)*Math.cos(el)*spd);
     var mat=new THREE.MeshBasicMaterial({color:color,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false});
-    var mesh=new THREE.Mesh(new THREE.SphereBufferGeometry(0.065,4,4),mat);
+    var mesh=new THREE.Mesh(_burstGeo,mat); // shared geo — only material varies
     mesh.position.copy(pos); scene.add(mesh);
     bursts.push({mesh:mesh,vel:vel,life:0,maxLife:0.5+Math.random()*0.4});
   }
@@ -7204,7 +7218,7 @@ function updateBursts(delta) {
     var p=b.life/b.maxLife;
     b.mesh.position.addScaledVector(b.vel,delta); b.vel.y-=5*delta;
     b.mesh.material.opacity=1-p; b.mesh.scale.setScalar(1-p*0.5);
-    if(p>=1){scene.remove(b.mesh); bursts.splice(i,1);}
+    if(p>=1){b.mesh.material.dispose();scene.remove(b.mesh);bursts.splice(i,1);}
   }
 }
 
@@ -7223,7 +7237,7 @@ function updateEffects(delta) {
   for(var i=effects.length-1;i>=0;i--){
     var e=effects[i]; e.life+=delta; var p=e.life/e.maxLife;
     var s=1+p*e.maxScale; e.mesh.scale.set(s,s,1); e.mesh.material.opacity=1-p;
-    if(p>=1){scene.remove(e.mesh); effects.splice(i,1);}
+    if(p>=1){e.mesh.geometry.dispose();e.mesh.material.dispose();scene.remove(e.mesh);effects.splice(i,1);}
   }
 }
 
@@ -7231,6 +7245,7 @@ function updateEffects(delta) {
 var _dmgLabels=[];
 var _destinyTrackerEl=document.getElementById('destiny-tracker');
 function _spawnDmgNumber(worldPos, label) {
+  if(_dmgLabels.length>=12) return; // cap DOM overlay count
   var el=document.createElement('div');
   el.style.cssText='position:fixed;font-family:monospace;font-size:13px;font-weight:bold;pointer-events:none;z-index:50;text-shadow:0 0 8px currentColor;transition:none;';
   el.style.color=(label==='LETHAL')?'#ff0000':(label==='HIT'?'#ffcc00':'#ff6600');
