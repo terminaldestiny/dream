@@ -8165,7 +8165,7 @@ function updateThreatSpawner(delta){
   }
   threatSpawnTimer-=delta;
   if(threatSpawnTimer<=0){
-    threatSpawnTimer=41+Math.random()*54; // +15% faster than previous 48+64
+    threatSpawnTimer=35+Math.random()*47; // ~15% more frequent spawns
     if(aliveCount>=4&&activeThreatCount<4){ spawnThreat(); if(Math.random()>0.55) triggerRain(10); }
     // Extra spawn when many structures exist
     if(aliveCount>=12&&activeThreatCount<6&&Math.random()>0.55) spawnThreat();
