@@ -2242,6 +2242,7 @@ function startHeavyRain(){
   // First lightning after 1-3s
   setTimeout(triggerLightning, 1000+Math.random()*2000);
   destinyChat(['Storm rolling in — taking cover.','Heavy rain. Lightning incoming.','The sky breaks open.','Thunder. This storm means business.'][Math.floor(Math.random()*4)]);
+  _sfxStartRain();
 }
 
 function stopHeavyRain(){
@@ -2252,7 +2253,85 @@ function stopHeavyRain(){
   rainTimer=0;
   for(var i=0;i<rainMeshes.length;i++) rainMeshes[i].visible=false;
   destinyChat(['Storm passed. World is quiet again.','Rain stopping. Back to work.','Clear skies returning.'][Math.floor(Math.random()*3)]);
+  _sfxStopRain();
 }
+
+// ── SOUND ENGINE ─────────────────────────────────────────────────────────
+var _sfxCtx=null, _windNode=null, _windGain=null, _rainNode=null, _rainGain=null;
+
+function _sfxInit(){
+  if(_sfxCtx) return;
+  try{ _sfxCtx=new(window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+}
+
+function _sfxNoiseBuf(sec){
+  var sr=_sfxCtx.sampleRate, buf=_sfxCtx.createBuffer(1,sr*sec,sr), d=buf.getChannelData(0);
+  for(var i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+  return buf;
+}
+
+function _sfxStartWind(){
+  if(!_sfxCtx||_windNode) return;
+  _windNode=_sfxCtx.createBufferSource(); _windNode.buffer=_sfxNoiseBuf(4); _windNode.loop=true;
+  var lp=_sfxCtx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=350;
+  _windGain=_sfxCtx.createGain(); _windGain.gain.value=0.04;
+  _windNode.connect(lp); lp.connect(_windGain); _windGain.connect(_sfxCtx.destination);
+  _windNode.start();
+}
+
+function _sfxStartRain(){
+  if(!_sfxCtx||_rainNode) return;
+  _rainNode=_sfxCtx.createBufferSource(); _rainNode.buffer=_sfxNoiseBuf(4); _rainNode.loop=true;
+  var bp=_sfxCtx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2200; bp.Q.value=0.4;
+  _rainGain=_sfxCtx.createGain(); _rainGain.gain.value=0.001;
+  _rainNode.connect(bp); bp.connect(_rainGain); _rainGain.connect(_sfxCtx.destination);
+  _rainNode.start();
+  _rainGain.gain.setTargetAtTime(0.2,_sfxCtx.currentTime,2.0);
+}
+
+function _sfxStopRain(){
+  if(!_rainGain||!_rainNode) return;
+  _rainGain.gain.setTargetAtTime(0,_sfxCtx.currentTime,1.5);
+  var _rn=_rainNode; _rainNode=null; _rainGain=null;
+  setTimeout(function(){ try{_rn.stop();}catch(e){} },4000);
+}
+
+function _sfxBuildDone(){
+  if(!_sfxCtx) return;
+  var osc=_sfxCtx.createOscillator(), g=_sfxCtx.createGain();
+  osc.type='sine'; osc.frequency.setValueAtTime(440,_sfxCtx.currentTime);
+  osc.frequency.linearRampToValueAtTime(660,_sfxCtx.currentTime+0.18);
+  g.gain.setValueAtTime(0.12,_sfxCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,_sfxCtx.currentTime+0.55);
+  osc.connect(g); g.connect(_sfxCtx.destination);
+  osc.start(); osc.stop(_sfxCtx.currentTime+0.55);
+}
+
+function _sfxThunderBoom(){
+  if(!_sfxCtx) return;
+  var src=_sfxCtx.createBufferSource(); src.buffer=_sfxNoiseBuf(2);
+  var lp=_sfxCtx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=130;
+  var g=_sfxCtx.createGain(); g.gain.setValueAtTime(0.55,_sfxCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,_sfxCtx.currentTime+2.0);
+  src.connect(lp); lp.connect(g); g.connect(_sfxCtx.destination);
+  src.start(); src.stop(_sfxCtx.currentTime+2.0);
+}
+
+function _sfxHit(){
+  if(!_sfxCtx) return;
+  var osc=_sfxCtx.createOscillator(), g=_sfxCtx.createGain();
+  osc.type='sawtooth'; osc.frequency.setValueAtTime(90,_sfxCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(40,_sfxCtx.currentTime+0.09);
+  g.gain.setValueAtTime(0.09,_sfxCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,_sfxCtx.currentTime+0.09);
+  osc.connect(g); g.connect(_sfxCtx.destination);
+  osc.start(); osc.stop(_sfxCtx.currentTime+0.1);
+}
+
+// Unlock on first click
+document.addEventListener('click',function _sfxUnlock(){
+  _sfxInit(); _sfxStartWind();
+},{once:true});
 
 function updateHeavyRain(delta, t){
   // Weather auto-cycle
@@ -2330,6 +2409,7 @@ function updateHeavyRain(delta, t){
       _lightningDiv.style.background='rgba(100,130,200,0.08)';
       setTimeout(function(){ _lightningDiv.style.background='rgba(100,130,200,0)'; },120);
       _shakeTimer=0.3; _shakeAmt=0.1;
+      _sfxThunderBoom();
       _thunderQueue.splice(qi,1);
     }
   }
@@ -10134,7 +10214,7 @@ function _tdLoad(){
         if(sd.type==='chickenCoop') registerFoodProducer('chickenCoop');
         if(sd.type==='orchard') registerFoodProducer('orchard');
         if(sd.type==='vegetableGarden') registerFoodProducer('vegetableGarden');
-        if(sd.type==='ballista'){var bl=structures[structures.length-1];if(bl) ballistaList.push({pos:pos.clone(),mesh:bl.group});}
+        if(sd.type==='ballista'){var bl=structures[structures.length-1];if(bl){var _bPiv=null;bl.group.traverse(function(c){if(c.isGroup&&Math.abs(c.position.y-1.0)<0.05) _bPiv=c;});ballistaList.push({group:bl.group,pivot:_bPiv,cooldown:0,range:22,pos:pos.clone()});}}
       }
     });
   }
@@ -10276,7 +10356,7 @@ function updateDestiny(delta, t) {
       createBurst(dGroup.position.clone().setY(0.6),destinyMind.theme.wire,28);
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
       personalityChat('finishBuild',dBuildType);
-      journalNote('✅ Built: '+dBuildType,'🏗'); _spawnThoughtBubble(dBuildType+' complete.');
+      journalNote('✅ Built: '+dBuildType,'🏗'); _spawnThoughtBubble(dBuildType+' complete.'); _sfxBuildDone();
       setStatus('BUILDING'); dSeqIdx++;
       if(dSeqIdx>=BUILD_SEQUENCE.length){
         // Refill personality traits from brain if provided
@@ -11048,6 +11128,7 @@ function updateBallistae(delta,t){
         bal.cooldown=3.5+Math.random()*1.5;
         fireBolt(bal.pos.clone().setY(0), nearest.group.position.clone());
         createBurst(nearest.group.position.clone().setY(1),0x44aaff,8);
+        _sfxHit();
         nearest.hp--;
         if(nearest.hp<=0&&nearest.alive){
           dissolveThreat(nearest); killCount++; if(killEl) killEl.textContent=killCount;
