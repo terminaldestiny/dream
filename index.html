@@ -9711,7 +9711,7 @@ function _updateThreatBehavior(th, delta, t, dPos, dDist) {
           dCurrentThreat=th; dState='DEFEND_WALK'; setStatus('DEFENDING');
           destinyChat('Arrow hit. Ranger attacking from range.');
         }
-        if(destinyHP<=0){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
+        if(destinyHP<=0&&dState!=='STUNNED'){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
       }
       break;
 
@@ -10002,7 +10002,7 @@ function updateThreats(delta, t) {
           dCurrentThreat=th; dState='DEFEND_WALK'; setStatus('DEFENDING');
           _d1Say('Taking damage. Fighting back.','chat',{lastEvent:'hit by '+th.type,question:'Short pain/combat reaction.'});
         }
-        if(destinyHP<=0){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
+        if(destinyHP<=0&&dState!=='STUNNED'){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
       }
 
     } else if(th.nState==='RETURN'){
@@ -10873,7 +10873,7 @@ function updateDestiny(delta, t) {
             _spawnDmgNumber(dGroup.position.clone().setY(1.8),'-6 [SHARDS]');
             triggerHitFlash('rgba(0,200,255,0.2)');
             destinyChat('Crystal shard burst!');
-            if(destinyHP<=0){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
+            if(destinyHP<=0&&dState!=='STUNNED'){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
           }
         }
         var _hpAfter=Math.max(0,dCurrentThreat.hp);
