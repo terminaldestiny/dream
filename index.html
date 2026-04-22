@@ -9639,12 +9639,12 @@ function updateThreats(delta, t) {
             blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
         dr.rotation.x=-Math.PI/2; dr.position.copy(dpos); dr.position.y=0.1;
         scene.add(dr);
-        (function(r){var lt=0;var fn=function(){lt+=0.05;r.material.opacity=Math.max(0,0.9-lt*1.8);r.scale.setScalar(1+lt*8);if(lt<0.5)requestAnimationFrame(fn);else scene.remove(r);};requestAnimationFrame(fn);})(dr);
+        (function(r){var lt=0;var fn=function(){lt+=0.05;r.material.opacity=Math.max(0,0.9-lt*1.8);r.scale.setScalar(1+lt*8);if(lt<0.5)requestAnimationFrame(fn);else{r.geometry.dispose();r.material.dispose();scene.remove(r);}};requestAnimationFrame(fn);})(dr);
         triggerHitFlash(th.rank==='champion'?'rgba(255,140,0,0.18)':'rgba(255,60,0,0.12)');
       }
       th.dissolveTimer+=delta; var dp=th.dissolveTimer/0.65;
       th.group.scale.setScalar(Math.max(0,1-dp));
-      if(dp>=1){scene.remove(th.group); threats.splice(i,1);} continue;
+      if(dp>=1){th.group.traverse(function(c){if(c.isMesh){if(c.geometry)c.geometry.dispose();if(c.material&&!c.material._shared)c.material.dispose();}});scene.remove(th.group);threats.splice(i,1);} continue;
     }
     if(!th.alive) continue;
     hasLive=true;
@@ -10154,6 +10154,7 @@ function _tdSave(){
     dPos:{x:Math.round(dGroup.position.x*10)/10,z:Math.round(dGroup.position.z*10)/10},
     killCount:killCount,
     dSeqIdx:dSeqIdx,
+    pois:worldPOIs.map(function(p){return p.discovered;}),
     structs:structures.filter(function(s){return s.alive&&!s.dissolving;}).map(function(s){
       return {type:s.type,pos:{x:s.pos.x,y:s.pos.y||0,z:s.pos.z},rot:s.rot||0,
               level:s.level||1,complete:!s.growing,
@@ -10177,6 +10178,9 @@ function _tdLoad(){
 
   // Restore kill count
   if(data.killCount){killCount=data.killCount;if(killEl)killEl.textContent=killCount;}
+
+  // Restore POI discovered state
+  if(data.pois){for(var _pi=0;_pi<data.pois.length&&_pi<worldPOIs.length;_pi++){if(data.pois[_pi]){worldPOIs[_pi].discovered=true;if(worldPOIs[_pi].marker)worldPOIs[_pi].marker.visible=true;}}}
 
   // Restore sequence index
   if(data.dSeqIdx) dSeqIdx=Math.min(data.dSeqIdx,BUILD_SEQUENCE.length);
@@ -10597,6 +10601,7 @@ function updateDestiny(delta, t) {
           }
         }
         // Deal damage and show real HP numbers
+        _sfxHit();
         dCurrentThreat.hp--;
         var _hpAfter=Math.max(0,dCurrentThreat.hp);
         var _dmgLabel;
