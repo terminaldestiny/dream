@@ -10041,6 +10041,7 @@ var dArtPos=new THREE.Vector3(), dArtPick='';     // art walk destination + type
 var _pendingArtProject=null;                       // {x,z,pick} queued by creativity timer
 var _artLog=[];                                    // [{pick,x,z}] — persisted across reloads
 var destinyHP=100, destinyMaxHP=100, destinyRegen=1.5;
+var _deathCount=0, _stunInitDone=false;
 var dGatherNodeIdx=-1, dGatherTimer=0, dCarrying=0, dCarryType='compute';
 var D_GATHER_TIME=7.0;
 var D_CARRY={compute:38,wood:30,stone:20,crystalium:12};
@@ -10933,22 +10934,56 @@ function updateDestiny(delta, t) {
     }
 
   } else if(dState==='STUNNED'){
-    dParts.armLPivot.rotation.x=Math.sin(t*4)*0.3; dParts.armRPivot.rotation.x=Math.sin(t*4+1)*0.3;
+    // ── Death sequence entry ───────────────────────────────────────────
+    if(!_stunInitDone){
+      _stunInitDone=true; _deathCount++;
+      // Burst at fall point
+      createBurst(dGroup.position.clone().setY(1.0),0xff0000,55);
+      createBurst(dGroup.position.clone().setY(0.3),0xff6600,30);
+      createBurst(dGroup.position.clone().setY(1.8),0xffffff,20);
+      destinyChat('DESTINY-1 OFFLINE. Rebooting...');
+      journalNote('💀 Fell in combat (death #'+_deathCount+'). Rebooting at base.','💀');
+      _spawnThoughtBubble('OFFLINE');
+      setStatus('OFFLINE');
+      _hitFlashTimer=0; // prevent hit-flash decay from clearing our overlay
+    }
+    // Body fall — pitches forward over first 0.4s then lies flat
+    var _fallProg=Math.min(1,(6-dTimer)/0.4);
+    dGroup.rotation.x=_fallProg*1.4;
+    // Weak ground twitch when fully down
+    if(_fallProg>=1){
+      dParts.armLPivot.rotation.x=Math.sin(t*1.8)*0.10;
+      dParts.armRPivot.rotation.x=Math.sin(t*1.8+1.2)*0.10;
+    }
+    // Death overlay — deep red, fades out over the stun duration
+    if(_hitFlash){
+      var _da=0.52*Math.max(0,(dTimer-0.8)/5.2);
+      _hitFlash.style.background='rgba(160,0,0,'+_da.toFixed(2)+')';
+      _hitFlashTimer=0;
+    }
     dTimer-=delta;
     if(dTimer<=0){
+      _stunInitDone=false;
+      // Snap body upright before teleport
+      dGroup.rotation.x=0; dGroup.rotation.z=0;
+      dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
+      // Clear death overlay
+      if(_hitFlash){_hitFlash.style.transition='background 0.6s';_hitFlash.style.background='rgba(255,0,0,0)';}
       destinyHP=20;
-      // Release any claimed nodes that got stuck during the stun
-      if(dGatherNodeIdx>=0&&resourceNodes[dGatherNodeIdx]&&!resourceNodes[dGatherNodeIdx].depleted){
+      if(dGatherNodeIdx>=0&&resourceNodes[dGatherNodeIdx]&&!resourceNodes[dGatherNodeIdx].depleted)
         resourceNodes[dGatherNodeIdx].claimed=false;
-      }
       dGatherNodeIdx=-1;
-      if(dRareNodeIdx>=0&&resourceNodes[dRareNodeIdx]&&!resourceNodes[dRareNodeIdx].depleted){
+      if(dRareNodeIdx>=0&&resourceNodes[dRareNodeIdx]&&!resourceNodes[dRareNodeIdx].depleted)
         resourceNodes[dRareNodeIdx].claimed=false;
-      }
       dRareNodeIdx=-1;
-      // Respawn at town center
+      // Teleport to town center
       if(tcS&&tcS.pos) dGroup.position.set(tcS.pos.x,0,tcS.pos.z+2);
-      setStatus('RECOVERING'); destinyChat('Systems rebooting. Structural integrity low.');
+      // Reboot burst at spawn point
+      createBurst(dGroup.position.clone().setY(1.0),0x00ff41,55);
+      createBurst(dGroup.position.clone().setY(0.5),0x44ffaa,30);
+      createBurst(dGroup.position.clone().setY(1.8),0xffffff,25);
+      _spawnDecisionRipple(0x00ff41);
+      setStatus('RECOVERING'); destinyChat('Systems online. Back in action.');
       dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=3;
     }
 
@@ -11228,13 +11263,33 @@ function updateDestiny(delta, t) {
 
   } else if(dState==='SCOUT_SURVEY'){
     dParts.armLPivot.rotation.x=Math.sin(t*0.6)*0.24; dParts.armRPivot.rotation.x=-Math.sin(t*0.6)*0.24;
-    // Slowly pan to look around
     dGroup.rotation.y+=delta*0.3;
-    // Continue revealing as agent surveys the area
-    revealFog(dGroup.position.x, dGroup.position.z, 30+Math.sin(t)*5);
+    // On first tick: discover nearby POIs and log threat sightings
+    if(!_stunInitDone&&dTimer>13.5){
+      var _scoutFinds=[];
+      for(var _spoi=0;_spoi<worldPOIs.length;_spoi++){
+        var _spd=dGroup.position.distanceTo(worldPOIs[_spoi].pos);
+        if(!worldPOIs[_spoi].discovered&&_spd<42){
+          worldPOIs[_spoi].discovered=true;
+          if(worldPOIs[_spoi].marker) worldPOIs[_spoi].marker.visible=true;
+          _scoutFinds.push(worldPOIs[_spoi].name);
+        }
+      }
+      // Count threats in area
+      var _scoutThreatN=0;
+      for(var _sti=0;_sti<threats.length;_sti++){
+        if(threats[_sti].alive&&dGroup.position.distanceTo(threats[_sti].group.position)<50) _scoutThreatN++;
+      }
+      if(_scoutFinds.length) journalNote('🔭 Scout found: '+_scoutFinds.join(', '),'🔭');
+      if(_scoutThreatN>0) journalNote('⚠ Scout spotted '+_scoutThreatN+' threat'+(+_scoutThreatN>1?'s':'')+' in sector','⚠');
+      if(_scoutFinds.length) destinyChat('Scout found '+_scoutFinds.join(', ')+'.');
+      else if(_scoutThreatN) destinyChat('Spotted '+_scoutThreatN+' hostile'+(+_scoutThreatN>1?'s':'')+' in the area.');
+      else destinyChat('Area clear. Nothing new out here.');
+      _stunInitDone=true; // reuse flag as "survey logged" flag
+    }
     dTimer-=delta;
     if(dTimer<=0){
-      // Head home
+      _stunInitDone=false;
       dTarget.set(1.5,0,1.5);
       dState='EXPLORE_RETURN'; setStatus('RETURNING');
       destinyChat('Survey complete. Heading back.');
