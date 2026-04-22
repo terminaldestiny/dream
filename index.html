@@ -9670,11 +9670,11 @@ function updateThreats(delta, t) {
       }
       // Expanded alert radius — enemies spot Destiny sooner
       if(dPos&&dDist<th.alertRange*1.35){ th.nState='ALERT'; }
-      var ptDir=new THREE.Vector3().subVectors(th.patrolTarget,th.group.position); ptDir.y=0;
-      if(ptDir.length()>0.3){
-        ptDir.normalize();
-        th.group.rotation.y=Math.atan2(ptDir.x,ptDir.z);
-        th.group.position.addScaledVector(ptDir,THREAT_SPEED*th.speedMult*0.38*delta);
+      _tv1.subVectors(th.patrolTarget,th.group.position); _tv1.y=0;
+      if(_tv1.length()>0.3){
+        _tv1.normalize();
+        th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);
+        th.group.position.addScaledVector(_tv1,THREAT_SPEED*th.speedMult*0.38*delta);
         th.pos.copy(th.group.position);
       }
 
@@ -9686,15 +9686,14 @@ function updateThreats(delta, t) {
       else if(dDist<1.6){ th.nState='ATTACK'; th.atkCooldown=th.atkRate*0.2; th.group.rotation.x=0; }
       else if(dDist>th.alertRange*2.5){ th.nState='RETURN'; th.group.rotation.x=0; }
       else {
-        var aDir=new THREE.Vector3().subVectors(dPos,th.group.position); aDir.y=0;
-        aDir.normalize();
-        th.group.rotation.y=Math.atan2(aDir.x,aDir.z);
+        _tv1.subVectors(dPos,th.group.position); _tv1.y=0; _tv1.normalize();
+        th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);
         if(th.weapon) th.weapon.rotation.x=-0.8; // weapon points at target
         // Erratic weave — harder to dodge
-        var perp=new THREE.Vector3(-aDir.z,0,aDir.x);
+        _tv2.set(-_tv1.z,0,_tv1.x);
         var chargeSpd=THREAT_SPEED*th.speedMult*1.15; // 15% faster charge
-        th.group.position.addScaledVector(aDir,chargeSpd*delta);
-        th.group.position.addScaledVector(perp,Math.sin(t*4.5+th.wobble)*0.18*delta);
+        th.group.position.addScaledVector(_tv1,chargeSpd*delta);
+        th.group.position.addScaledVector(_tv2,Math.sin(t*4.5+th.wobble)*0.18*delta);
         th.pos.copy(th.group.position);
         // Destiny auto-engages when enemy charges — interrupts any non-combat state
         if(dGroup&&dState!=='DEFEND_WALK'&&dState!=='DEFEND_ATTACK'&&dState!=='STUNNED'&&dDist<th.alertRange*1.2){
@@ -9714,7 +9713,7 @@ function updateThreats(delta, t) {
     } else if(th.nState==='ATTACK'){
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*1.5;
       th.group.rotation.x=0.08; // slight lean during melee
-      if(dPos){var afDir=new THREE.Vector3().subVectors(dPos,th.group.position);afDir.y=0;if(afDir.length()>0.1)th.group.rotation.y=Math.atan2(afDir.x,afDir.z);}
+      if(dPos){_tv1.subVectors(dPos,th.group.position);_tv1.y=0;if(_tv1.length()>0.1)th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);}
       // Frantic weapon strike animation
       if(th.weapon){
         th.weapon.rotation.z=Math.sin(th.walkPhase*5)*1.1;
@@ -9724,8 +9723,8 @@ function updateThreats(delta, t) {
       if(th.gRing) th.gRing.material.color.setHex(Math.sin(t*10)>0?0xff1100:0xff5500);
       // Chase Destiny if she moves away mid-fight
       if(dPos&&dDist>1.8&&dDist<5.0){
-        var cDir=new THREE.Vector3().subVectors(dPos,th.group.position);cDir.y=0;cDir.normalize();
-        th.group.position.addScaledVector(cDir,THREAT_SPEED*th.speedMult*0.75*delta);
+        _tv1.subVectors(dPos,th.group.position);_tv1.y=0;_tv1.normalize();
+        th.group.position.addScaledVector(_tv1,THREAT_SPEED*th.speedMult*0.75*delta);
         th.pos.copy(th.group.position);
       }
       if(!dPos||dDist>5.5){th.nState='ALERT';if(th.gRing)th.gRing.material.color.setHex(0xffffff);}
@@ -9758,11 +9757,11 @@ function updateThreats(delta, t) {
       th.group.rotation.x=0; // reset lean
       if(th.weapon){th.weapon.rotation.x=0;th.weapon.rotation.z=0;}
       if(th.gRing) th.gRing.material.color.setHex(th.glowMat.color?th.glowMat.color.getHex():0xffffff);
-      var rDir=new THREE.Vector3().subVectors(th.homePos,th.group.position); rDir.y=0;
-      if(rDir.length()>0.6){
-        rDir.normalize();
-        th.group.rotation.y=Math.atan2(rDir.x,rDir.z);
-        th.group.position.addScaledVector(rDir,THREAT_SPEED*th.speedMult*0.45*delta);
+      _tv1.subVectors(th.homePos,th.group.position); _tv1.y=0;
+      if(_tv1.length()>0.6){
+        _tv1.normalize();
+        th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);
+        th.group.position.addScaledVector(_tv1,THREAT_SPEED*th.speedMult*0.45*delta);
         th.pos.copy(th.group.position);
       } else { th.nState='PATROL'; }
     }
@@ -9777,11 +9776,13 @@ function drawMinimap() {}
 // ════════════════════════════════════════════════════════════════════
 
 var dGroup=null, dParts=null;
+var _tv1=new THREE.Vector3(), _tv2=new THREE.Vector3(); // reusable per-frame scratch vectors
 var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=0.5;
 var dSeqIdx=0, dBuildType=BUILD_SEQUENCE[0], dBuildPos=new THREE.Vector3(), dBuildRot=0;
 var dCurrentThreat=null;
 var dArtPos=new THREE.Vector3(), dArtPick='';     // art walk destination + type
 var _pendingArtProject=null;                       // {x,z,pick} queued by creativity timer
+var _artLog=[];                                    // [{pick,x,z}] — persisted across reloads
 var destinyHP=100, destinyMaxHP=100, destinyRegen=1.5;
 var dGatherNodeIdx=-1, dGatherTimer=0, dCarrying=0, dCarryType='compute';
 var D_GATHER_TIME=7.0;
@@ -10155,6 +10156,7 @@ function _tdSave(){
     killCount:killCount,
     dSeqIdx:dSeqIdx,
     pois:worldPOIs.map(function(p){return p.discovered;}),
+    art:_artLog.slice(-80),
     structs:structures.filter(function(s){return s.alive&&!s.dissolving;}).map(function(s){
       return {type:s.type,pos:{x:s.pos.x,y:s.pos.y||0,z:s.pos.z},rot:s.rot||0,
               level:s.level||1,complete:!s.growing,
@@ -10181,6 +10183,16 @@ function _tdLoad(){
 
   // Restore POI discovered state
   if(data.pois){for(var _pi=0;_pi<data.pois.length&&_pi<worldPOIs.length;_pi++){if(data.pois[_pi]){worldPOIs[_pi].discovered=true;if(worldPOIs[_pi].marker)worldPOIs[_pi].marker.visible=true;}}}
+
+  // Restore art placements (instant, no animation)
+  if(data.art){data.art.forEach(function(a){
+    if(!a||!a.pick) return;
+    if(a.pick==='_terraform_lake') terrainLake(a.x,a.z,7);
+    else if(a.pick==='_terraform_river'&&a.ra!=null) terrainRiver(a.x,a.z,a.x+Math.cos(a.ra)*(a.rl||22),a.z+Math.sin(a.ra)*(a.rl||22),2.5);
+    else if(a.pick==='_terraform_crater') terrainCrater(a.x,a.z,6);
+    else executeArtProject(a.x,a.z,a.pick);
+    _artLog.push(a);
+  });}
 
   // Restore sequence index
   if(data.dSeqIdx) dSeqIdx=Math.min(data.dSeqIdx,BUILD_SEQUENCE.length);
@@ -10333,7 +10345,7 @@ function updateDestiny(delta, t) {
   }
 
   if(dState==='BUILD_WALK'){
-    var bDist0=new THREE.Vector3().subVectors(dTarget,dGroup.position).length();
+    var bDist0=_tv1.subVectors(dTarget,dGroup.position).length();
     _applyWander(delta,bDist0);
     var bSpd=_wanderSpeedMult();
     dWalk+=delta*3.8*bSpd; var sw=Math.sin(dWalk)*0.44;
@@ -10341,9 +10353,9 @@ function updateDestiny(delta, t) {
     dParts.armLPivot.rotation.x=-sw*0.5+Math.sin(t*0.9)*0.04; dParts.armRPivot.rotation.x=sw*0.5+Math.sin(t*1.1)*0.04;
     // Head tilts toward destination with slight idle sway
     dParts.head.rotation.y=Math.sin(t*0.4)*0.12;
-    var bDir=new THREE.Vector3().subVectors(new THREE.Vector3(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ),dGroup.position); bDir.y=0;
-    var bRealDist=new THREE.Vector3().subVectors(dTarget,dGroup.position); bRealDist.y=0;
-    if(bRealDist.length()>0.20){bDir.normalize();dGroup.position.addScaledVector(bDir,D_SPEED*bSpd*delta);dGroup.rotation.y=Math.atan2(bDir.x,bDir.z);}
+    _tv1.set(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ).sub(dGroup.position); _tv1.y=0;
+    _tv2.subVectors(dTarget,dGroup.position); _tv2.y=0;
+    if(_tv2.length()>0.20){_tv1.normalize();dGroup.position.addScaledVector(_tv1,D_SPEED*bSpd*delta);dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);}
     else{dGroup.position.copy(dTarget);dParts.legLPivot.rotation.x=0;dParts.legRPivot.rotation.x=0;dParts.armLPivot.rotation.x=0;dParts.armRPivot.rotation.x=0;dParts.head.rotation.y=0;dState='BUILD_ARRIVE';dTimer=D_BUILD_PAUSE;}
 
   } else if(dState==='BUILD_ARRIVE'){
@@ -10454,16 +10466,15 @@ function updateDestiny(delta, t) {
       if(alt!==-1){dGatherNodeIdx=alt;resourceNodes[alt].claimed=true;dTarget.copy(resourceNodes[alt].pos);}
       else{dState='BUILD_WAIT';dTimer=5;return;}
     }
-    var gDist0=new THREE.Vector3().subVectors(dTarget,dGroup.position).length();
+    var gDist0=_tv1.subVectors(dTarget,dGroup.position).length();
     _applyWander(delta,gDist0); var gSpd=_wanderSpeedMult();
     dWalk+=delta*3.8*gSpd; var sgw=Math.sin(dWalk)*0.44;
     dParts.legLPivot.rotation.x=sgw; dParts.legRPivot.rotation.x=-sgw;
     dParts.armLPivot.rotation.x=-sgw*0.5; dParts.armRPivot.rotation.x=sgw*0.5;
     dParts.head.rotation.y=Math.sin(t*0.35)*0.14+Math.sin(t*0.9)*0.06;
-    var gWanderTarget=new THREE.Vector3(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ);
-    var gDir=new THREE.Vector3().subVectors(gWanderTarget,dGroup.position); gDir.y=0;
-    var gRealDist=new THREE.Vector3().subVectors(dTarget,dGroup.position); gRealDist.y=0;
-    if(gRealDist.length()>0.22){gDir.normalize();dGroup.position.addScaledVector(gDir,D_SPEED*gSpd*delta);dGroup.rotation.y=Math.atan2(gDir.x,gDir.z);}
+    _tv1.set(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ).sub(dGroup.position); _tv1.y=0;
+    _tv2.subVectors(dTarget,dGroup.position); _tv2.y=0;
+    if(_tv2.length()>0.22){_tv1.normalize();dGroup.position.addScaledVector(_tv1,D_SPEED*gSpd*delta);dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);}
     else{dParts.legLPivot.rotation.x=0;dParts.legRPivot.rotation.x=0;dParts.armLPivot.rotation.x=0;dParts.armRPivot.rotation.x=0;dParts.head.rotation.y=0;dState='GATHERING';dGatherTimer=0;}
 
   } else if(dState==='GATHERING'){
@@ -10489,8 +10500,8 @@ function updateDestiny(delta, t) {
     dWalk+=delta*3.8; var srw=Math.sin(dWalk)*0.44;
     dParts.legLPivot.rotation.x=srw; dParts.legRPivot.rotation.x=-srw;
     dParts.armLPivot.rotation.x=-0.28+srw*0.18; dParts.armRPivot.rotation.x=-0.28-srw*0.18;
-    var rDir=new THREE.Vector3().subVectors(dTarget,dGroup.position); rDir.y=0;
-    if(rDir.length()>0.22){rDir.normalize();dGroup.position.addScaledVector(rDir,D_SPEED*delta);dGroup.rotation.y=Math.atan2(rDir.x,rDir.z);}
+    _tv1.subVectors(dTarget,dGroup.position); _tv1.y=0;
+    if(_tv1.length()>0.22){_tv1.normalize();dGroup.position.addScaledVector(_tv1,D_SPEED*delta);dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);}
     else{dParts.legLPivot.rotation.x=0;dParts.legRPivot.rotation.x=0;dParts.armLPivot.rotation.x=0;dParts.armRPivot.rotation.x=0;dState='GATHER_DEPOSIT';dTimer=1.0;}
 
   } else if(dState==='GATHER_DEPOSIT'){
@@ -10520,11 +10531,11 @@ function updateDestiny(delta, t) {
     // Aggressive charge stance — arms up, body lean forward
     dParts.armLPivot.rotation.x=-0.55+sw2*0.3; dParts.armRPivot.rotation.x=-0.55-sw2*0.3;
     dGroup.rotation.x=0.14; // forward combat lean
-    var tPos=dCurrentThreat.group.position.clone(); tPos.y=0;
-    var tDir=new THREE.Vector3().subVectors(tPos,dGroup.position);
-    if(tDir.length()>ATTACK_RANGE){
-      tDir.normalize(); dGroup.position.addScaledVector(tDir,D_SPEED*1.4*delta);
-      dGroup.rotation.y=Math.atan2(tDir.x,tDir.z);
+    _tv2.copy(dCurrentThreat.group.position); _tv2.y=0;
+    _tv1.subVectors(_tv2,dGroup.position);
+    if(_tv1.length()>ATTACK_RANGE){
+      _tv1.normalize(); dGroup.position.addScaledVector(_tv1,D_SPEED*1.4*delta);
+      dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);
       // Combat speed dash sparks
       if(Math.random()>0.88) createBurst(dGroup.position.clone().setY(0.3),destinyMind.theme.wire,4);
     } else {
@@ -10550,8 +10561,8 @@ function updateDestiny(delta, t) {
     dParts.legLPivot.rotation.x=0.12+Math.abs(_atkPhase)*0.08;
     dParts.legRPivot.rotation.x=0.08;
     if(dCurrentThreat&&dCurrentThreat.alive){
-      var ad=new THREE.Vector3().subVectors(dCurrentThreat.group.position,dGroup.position); ad.y=0;
-      if(ad.length()>0.1) dGroup.rotation.y=Math.atan2(ad.x,ad.z);
+      _tv1.subVectors(dCurrentThreat.group.position,dGroup.position); _tv1.y=0;
+      if(_tv1.length()>0.1) dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);
       // Continuous hit sparks during attack window
       if(Math.random()>0.82){
         var _hsp=dCurrentThreat.group.position.clone().setY(1.0+Math.random()*0.8);
@@ -10589,9 +10600,9 @@ function updateDestiny(delta, t) {
         })(_ir);
         // Enemy stagger — dramatic knockback
         if(dCurrentThreat.group){
-          var _kbDir=new THREE.Vector3().subVectors(dCurrentThreat.group.position,dGroup.position).normalize();
+          _tv1.subVectors(dCurrentThreat.group.position,dGroup.position).normalize();
           var _kbDist=0.55+Math.random()*0.30;
-          dCurrentThreat.group.position.addScaledVector(_kbDir,_kbDist);
+          dCurrentThreat.group.position.addScaledVector(_tv1,_kbDist);
           dCurrentThreat.pos.copy(dCurrentThreat.group.position);
           // Enemy brief red flash on hit
           if(dCurrentThreat.glowMat){
@@ -10804,22 +10815,21 @@ function updateDestiny(delta, t) {
     }
 
   } else if(dState==='EXPLORE_WALK'){
-    var eDist0=new THREE.Vector3().subVectors(dTarget,dGroup.position).length();
+    var eDist0=_tv1.subVectors(dTarget,dGroup.position).length();
     _applyWander(delta,eDist0); var eSpd=_wanderSpeedMult();
     dWalk+=delta*3.8*eSpd; var sewk=Math.sin(dWalk)*0.44;
     dParts.legLPivot.rotation.x=sewk; dParts.legRPivot.rotation.x=-sewk;
     dParts.armLPivot.rotation.x=-sewk*0.5+Math.sin(t*0.7)*0.05; dParts.armRPivot.rotation.x=sewk*0.5+Math.sin(t*1.3)*0.05;
     // Head scans the horizon while exploring
     dParts.head.rotation.y=Math.sin(t*0.28)*0.30+Math.sin(t*0.11)*0.15;
-    var eWanderTarget=new THREE.Vector3(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ);
-    var eDir=new THREE.Vector3().subVectors(eWanderTarget,dGroup.position); eDir.y=0;
-    var eRealDir=new THREE.Vector3().subVectors(dTarget,dGroup.position); eRealDir.y=0;
-    var eDist=eRealDir.length();
+    _tv1.set(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ).sub(dGroup.position); _tv1.y=0;
+    _tv2.subVectors(dTarget,dGroup.position); _tv2.y=0;
+    var eDist=_tv2.length();
     if(eDist>0.6){
-      if(eDir.length()<0.001) eDir.copy(eRealDir);
-      eDir.normalize().multiplyScalar(Math.min(D_SPEED*eSpd*delta,eDist));
-      dGroup.position.add(eDir);
-      dGroup.rotation.y=Math.atan2(eDir.x,eDir.z);
+      if(_tv1.length()<0.001) _tv1.copy(_tv2);
+      _tv1.normalize().multiplyScalar(Math.min(D_SPEED*eSpd*delta,eDist));
+      dGroup.position.add(_tv1);
+      dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);
     } else {
       dParts.legLPivot.rotation.x=0; dParts.legRPivot.rotation.x=0;
       dParts.head.rotation.y=0;
@@ -10872,12 +10882,12 @@ function updateDestiny(delta, t) {
     dWalk+=delta*3.8; var serw=Math.sin(dWalk)*0.44;
     dParts.legLPivot.rotation.x=serw; dParts.legRPivot.rotation.x=-serw;
     dParts.armLPivot.rotation.x=-serw*0.5; dParts.armRPivot.rotation.x=serw*0.5;
-    var erDir=new THREE.Vector3().subVectors(dTarget,dGroup.position); erDir.y=0;
-    var erDist=erDir.length();
+    _tv1.subVectors(dTarget,dGroup.position); _tv1.y=0;
+    var erDist=_tv1.length();
     if(erDist>0.6){
-      erDir.normalize().multiplyScalar(Math.min(D_SPEED*delta,erDist));
-      dGroup.position.add(erDir);
-      dGroup.rotation.y=Math.atan2(erDir.x,erDir.z);
+      _tv1.normalize().multiplyScalar(Math.min(D_SPEED*delta,erDist));
+      dGroup.position.add(_tv1);
+      dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);
     } else {
       dParts.legLPivot.rotation.x=0; dParts.legRPivot.rotation.x=0;
       dState='EXPLORE_WAIT'; dTimer=40+Math.random()*30;
@@ -10889,12 +10899,12 @@ function updateDestiny(delta, t) {
     dWalk+=delta*3.8; var aww=Math.sin(dWalk)*0.44;
     dParts.legLPivot.rotation.x=aww; dParts.legRPivot.rotation.x=-aww;
     dParts.armLPivot.rotation.x=-aww*0.4; dParts.armRPivot.rotation.x=aww*0.4;
-    var awDir=new THREE.Vector3().subVectors(dTarget,dGroup.position); awDir.y=0;
-    var awDist=awDir.length();
+    _tv1.subVectors(dTarget,dGroup.position); _tv1.y=0;
+    var awDist=_tv1.length();
     if(awDist>0.25){
-      awDir.normalize();
-      dGroup.position.addScaledVector(awDir,D_SPEED*delta);
-      dGroup.rotation.y=Math.atan2(awDir.x,awDir.z);
+      _tv1.normalize();
+      dGroup.position.addScaledVector(_tv1,D_SPEED*delta);
+      dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);
     } else {
       dGroup.position.x=dTarget.x; dGroup.position.z=dTarget.z;
       dParts.legLPivot.rotation.x=0; dParts.legRPivot.rotation.x=0;
@@ -10909,12 +10919,13 @@ function updateDestiny(delta, t) {
     if(dTimer<=0){
       var _apx=dGroup.position.x, _apz=dGroup.position.z;
       // Handle terraform types
-      if(dArtPick==='_terraform_lake')   terrainLake(_apx,_apz,6+Math.random()*5);
+      if(dArtPick==='_terraform_lake'){   terrainLake(_apx,_apz,6+Math.random()*5); _artLog.push({pick:dArtPick,x:_apx,z:_apz}); }
       else if(dArtPick==='_terraform_river'){
         var _ra=Math.random()*Math.PI*2, _rl=18+Math.random()*14;
         terrainRiver(_apx,_apz,_apx+Math.cos(_ra)*_rl,_apz+Math.sin(_ra)*_rl,2+Math.random()*1.5);
-      } else if(dArtPick==='_terraform_crater') terrainCrater(_apx,_apz,5+Math.random()*4);
-      else executeArtProject(_apx,_apz,dArtPick);
+        _artLog.push({pick:dArtPick,x:_apx,z:_apz,ra:_ra,rl:_rl});
+      } else if(dArtPick==='_terraform_crater'){ terrainCrater(_apx,_apz,5+Math.random()*4); _artLog.push({pick:dArtPick,x:_apx,z:_apz}); }
+      else{ executeArtProject(_apx,_apz,dArtPick); _artLog.push({pick:dArtPick,x:_apx,z:_apz}); }
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
       journalNote('✅ Placed: '+dArtPick,'🎨'); _spawnThoughtBubble(dArtPick+' placed.');
       // Head home or linger briefly
@@ -10924,22 +10935,21 @@ function updateDestiny(delta, t) {
 
   // ── SCOUT ─────────────────────────────────────────────────────────────
   } else if(dState==='SCOUT_WALK'){
-    var scDist0=new THREE.Vector3().subVectors(dTarget,dGroup.position).length();
+    var scDist0=_tv1.subVectors(dTarget,dGroup.position).length();
     _applyWander(delta,scDist0); var scSpd=_wanderSpeedMult();
     dWalk+=delta*4.2*scSpd; var scw=Math.sin(dWalk)*0.48;
     dParts.legLPivot.rotation.x=scw; dParts.legRPivot.rotation.x=-scw;
     dParts.armLPivot.rotation.x=-scw*0.55; dParts.armRPivot.rotation.x=scw*0.55;
     // Head sweeps wide — alert scouting posture
     dParts.head.rotation.y=Math.sin(t*0.5)*0.40+Math.sin(t*0.19)*0.18;
-    var scWanderTarget=new THREE.Vector3(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ);
-    var scDir=new THREE.Vector3().subVectors(scWanderTarget,dGroup.position); scDir.y=0;
-    var scRealDir=new THREE.Vector3().subVectors(dTarget,dGroup.position); scRealDir.y=0;
-    var scDist=scRealDir.length();
+    _tv1.set(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ).sub(dGroup.position); _tv1.y=0;
+    _tv2.subVectors(dTarget,dGroup.position); _tv2.y=0;
+    var scDist=_tv2.length();
     if(scDist>0.8){
-      if(scDir.length()<0.001) scDir.copy(scRealDir);
-      scDir.normalize().multiplyScalar(Math.min(D_SPEED*1.2*scSpd*delta,scDist));
-      dGroup.position.add(scDir);
-      dGroup.rotation.y=Math.atan2(scDir.x,scDir.z);
+      if(_tv1.length()<0.001) _tv1.copy(_tv2);
+      _tv1.normalize().multiplyScalar(Math.min(D_SPEED*1.2*scSpd*delta,scDist));
+      dGroup.position.add(_tv1);
+      dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);
     } else {
       dParts.legLPivot.rotation.x=0; dParts.legRPivot.rotation.x=0;
       dParts.head.rotation.y=0;
@@ -10965,7 +10975,7 @@ function updateDestiny(delta, t) {
 
   // ── RARE RESOURCE EXPEDITION ─────────────────────────────────────────
   } else if(dState==='RARE_WALK'){
-    var rrDist0=new THREE.Vector3().subVectors(dTarget,dGroup.position).length();
+    var rrDist0=_tv1.subVectors(dTarget,dGroup.position).length();
     _applyWander(delta,rrDist0); var rrSpd=_wanderSpeedMult();
     dWalk+=delta*4.2*rrSpd; var rrw=Math.sin(dWalk)*0.48;
     dParts.legLPivot.rotation.x=rrw; dParts.legRPivot.rotation.x=-rrw;
@@ -10976,12 +10986,11 @@ function updateDestiny(delta, t) {
       if(altRare!==-1){dRareNodeIdx=altRare;resourceNodes[altRare].claimed=true;dTarget.copy(resourceNodes[altRare].pos);}
       else{dState='EXPLORE_WAIT';dTimer=12;_d1Say('All '+dRareCarryType+' nodes depleted.','chat',{lastEvent:'rare depleted'});return;}
     }
-    var rrWanderTarget=new THREE.Vector3(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ);
-    var rrDir=new THREE.Vector3().subVectors(rrWanderTarget,dGroup.position); rrDir.y=0;
-    var rrRealDir=new THREE.Vector3().subVectors(dTarget,dGroup.position); rrRealDir.y=0;
-    if(rrRealDir.length()>0.5){
-      rrDir.normalize(); dGroup.position.addScaledVector(rrDir,D_SPEED*rrSpd*delta);
-      dGroup.rotation.y=Math.atan2(rrDir.x,rrDir.z);
+    _tv1.set(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ).sub(dGroup.position); _tv1.y=0;
+    _tv2.subVectors(dTarget,dGroup.position); _tv2.y=0;
+    if(_tv2.length()>0.5){
+      _tv1.normalize(); dGroup.position.addScaledVector(_tv1,D_SPEED*rrSpd*delta);
+      dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);
     } else {
       dParts.legLPivot.rotation.x=0; dParts.legRPivot.rotation.x=0;
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
@@ -11016,7 +11025,7 @@ function updateDestiny(delta, t) {
     }
 
   } else if(dState==='RARE_RETURN'){
-    var rrRetDist0=new THREE.Vector3().subVectors(dTarget,dGroup.position).length();
+    var rrRetDist0=_tv1.subVectors(dTarget,dGroup.position).length();
     _applyWander(delta,rrRetDist0); var rrRetSpd=_wanderSpeedMult()*0.88; // heavier load, slower
     dWalk+=delta*4.0*rrRetSpd; var rrr=Math.sin(dWalk)*0.42;
     dParts.legLPivot.rotation.x=rrr; dParts.legRPivot.rotation.x=-rrr;
@@ -11024,12 +11033,11 @@ function updateDestiny(delta, t) {
     dParts.armLPivot.rotation.x=-0.32+rrr*0.15+Math.sin(t*0.6)*0.04;
     dParts.armRPivot.rotation.x=-0.32-rrr*0.15+Math.sin(t*0.8)*0.04;
     dParts.head.rotation.y=Math.sin(t*0.25)*0.14;
-    var rrWander2=new THREE.Vector3(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ);
-    var rrDir2=new THREE.Vector3().subVectors(rrWander2,dGroup.position); rrDir2.y=0;
-    var rrReal2=new THREE.Vector3().subVectors(dTarget,dGroup.position); rrReal2.y=0;
-    if(rrReal2.length()>0.4){
-      rrDir2.normalize(); dGroup.position.addScaledVector(rrDir2,D_SPEED*rrRetSpd*delta);
-      dGroup.rotation.y=Math.atan2(rrDir2.x,rrDir2.z);
+    _tv1.set(dTarget.x+_dWanderOX,0,dTarget.z+_dWanderOZ).sub(dGroup.position); _tv1.y=0;
+    _tv2.subVectors(dTarget,dGroup.position); _tv2.y=0;
+    if(_tv2.length()>0.4){
+      _tv1.normalize(); dGroup.position.addScaledVector(_tv1,D_SPEED*rrRetSpd*delta);
+      dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);
     } else {
       dParts.legLPivot.rotation.x=0; dParts.legRPivot.rotation.x=0;
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
@@ -11056,10 +11064,10 @@ function updateDestiny(delta, t) {
     dWalk+=delta*3.8; var uvw=Math.sin(dWalk)*0.44;
     dParts.legLPivot.rotation.x=uvw; dParts.legRPivot.rotation.x=-uvw;
     dParts.armLPivot.rotation.x=-uvw*0.5; dParts.armRPivot.rotation.x=uvw*0.5;
-    var upDir=new THREE.Vector3().subVectors(dTarget,dGroup.position); upDir.y=0;
-    if(upDir.length()>0.5){
-      upDir.normalize(); dGroup.position.addScaledVector(upDir,D_SPEED*delta);
-      dGroup.rotation.y=Math.atan2(upDir.x,upDir.z);
+    _tv1.subVectors(dTarget,dGroup.position); _tv1.y=0;
+    if(_tv1.length()>0.5){
+      _tv1.normalize(); dGroup.position.addScaledVector(_tv1,D_SPEED*delta);
+      dGroup.rotation.y=Math.atan2(_tv1.x,_tv1.z);
     } else {
       dParts.legLPivot.rotation.x=0; dParts.legRPivot.rotation.x=0;
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
@@ -11120,7 +11128,7 @@ function updateBallistae(delta,t){
     }
     if(nearest){
       // Rotate pivot to face threat
-      var tDir3=new THREE.Vector3().subVectors(nearest.group.position,bal.pos);
+      _tv1.subVectors(nearest.group.position,bal.pos); var tDir3=_tv1;
       tDir3.y=0;
       var targetAngle=Math.atan2(tDir3.x,tDir3.z);
       var currentAngle=bal.pivot.rotation.y;
