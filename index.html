@@ -10121,7 +10121,7 @@ function drawMinimap() {}
 
 var dGroup=null, dParts=null;
 var _tv1=new THREE.Vector3(), _tv2=new THREE.Vector3(); // reusable per-frame scratch vectors
-var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=9.5; // held for intro
+var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=0.5;
 var dSeqIdx=0, dBuildType=BUILD_SEQUENCE[0], dBuildPos=new THREE.Vector3(), dBuildRot=0;
 var dCurrentThreat=null;
 var dArtPos=new THREE.Vector3(), dArtPick='';     // art walk destination + type
@@ -10355,32 +10355,39 @@ function buildDestiny() {
 dParts=buildDestiny(); dGroup=dParts.group;
 dBuildPos.set(0,0,0); dTarget.set(0,0,0);
 
-// ── Intro sequence ────────────────────────────────────────────────────
+// ── Intro sequence (new game only, runs after boot screen) ───────────
 (function(){
-  var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:8000;pointer-events:none;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;font-family:"Courier New",monospace;';
-  document.body.appendChild(ov);
-  var _lines=[
-    {t:300,  txt:'[ SIGNAL DETECTED ]',          col:'#00ff41', sz:'13px'},
-    {t:1400, txt:'DEPLOYING  DESTINY-1',          col:'#44ffaa', sz:'22px'},
-    {t:2800, txt:'DESTINATION: UNCHARTED SECTOR', col:'#aaffcc', sz:'12px'},
-    {t:4000, txt:'WARNING — TERRITORY OCCUPIED',  col:'#ff8800', sz:'14px'},
-    {t:5200, txt:'MISSION: CLAIM IT. SURVIVE.',   col:'#ffffff', sz:'14px'},
-  ];
-  _lines.forEach(function(l){
-    setTimeout(function(){
-      var el=document.createElement('div');
-      el.style.cssText='color:'+l.col+';font-size:'+l.sz+';letter-spacing:4px;opacity:0;text-shadow:0 0 20px currentColor;transition:opacity 0.7s;text-transform:uppercase;';
-      el.textContent=l.txt;
-      ov.appendChild(el);
-      setTimeout(function(){el.style.opacity='1';},30);
-    },l.t);
-  });
+  var _saveExists=false;
+  try{_saveExists=!!localStorage.getItem('td_dream_v1');}catch(e){}
+  if(_saveExists) return; // returning player — skip intro
+  // hold BUILD_WAIT long enough for boot + intro to finish
+  dTimer=12.5;
   setTimeout(function(){
-    ov.style.transition='opacity 1.4s';
-    ov.style.opacity='0';
-    setTimeout(function(){if(ov.parentNode)ov.parentNode.removeChild(ov);},1500);
-  },7800);
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:8000;pointer-events:none;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;font-family:"Courier New",monospace;';
+    document.body.appendChild(ov);
+    var _lines=[
+      {t:300,  txt:'[ SIGNAL DETECTED ]',          col:'#00ff41', sz:'13px'},
+      {t:1000, txt:'DEPLOYING  DESTINY-1',          col:'#44ffaa', sz:'22px'},
+      {t:2000, txt:'DESTINATION: UNCHARTED SECTOR', col:'#aaffcc', sz:'12px'},
+      {t:3200, txt:'WARNING — TERRITORY OCCUPIED',  col:'#ff8800', sz:'14px'},
+      {t:4400, txt:'MISSION: CLAIM IT. SURVIVE.',   col:'#ffffff', sz:'14px'},
+    ];
+    _lines.forEach(function(l){
+      setTimeout(function(){
+        var el=document.createElement('div');
+        el.style.cssText='color:'+l.col+';font-size:'+l.sz+';letter-spacing:4px;opacity:0;text-shadow:0 0 20px currentColor;transition:opacity 0.7s;text-transform:uppercase;';
+        el.textContent=l.txt;
+        ov.appendChild(el);
+        setTimeout(function(){el.style.opacity='1';},30);
+      },l.t);
+    });
+    setTimeout(function(){
+      ov.style.transition='opacity 1.4s';
+      ov.style.opacity='0';
+      setTimeout(function(){if(ov.parentNode)ov.parentNode.removeChild(ov);},1500);
+    },6000);
+  },5200); // start after boot screen fades (~5100ms)
 })();
 
 
