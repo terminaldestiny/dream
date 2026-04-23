@@ -10372,12 +10372,14 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
     setTimeout(function(){ _introActive=false; dTimer=0.5; },800);
     return;
   }
-  // Desktop: black overlay goes up immediately so there's zero gap between boot and story.
-  // Text lines are timed relative to when boot finishes (~5200ms from now).
+  // Desktop: overlay starts transparent so boot shows through, then fades to black
+  // in sync with boot fading out — seamless crossfade, no gap, no block.
   var _smol=window.innerWidth<900;
   var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:998;pointer-events:all;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:'+(_smol?'10px':'14px')+';font-family:"Courier New",monospace;';
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;opacity:0;z-index:998;pointer-events:all;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:'+(_smol?'10px':'14px')+';font-family:"Courier New",monospace;';
   document.body.appendChild(ov);
+  // Cross-fade in as boot starts fading (boot fades at 4000ms, 1s transition)
+  setTimeout(function(){ ov.style.transition='opacity 1.2s'; ov.style.opacity='1'; },3800);
   var _lines=[
     {t:5500,  txt:'[ SIGNAL DETECTED ]',          col:'#00ff41', sz:_smol?'11px':'13px'},
     {t:6200,  txt:'DEPLOYING  DESTINY-1',          col:'#44ffaa', sz:_smol?'18px':'22px'},
