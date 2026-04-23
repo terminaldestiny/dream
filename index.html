@@ -8146,6 +8146,7 @@ var waveNumEl=document.getElementById('wave-num');
 var waveInfoEl=document.getElementById('wave-info');
 
 function updateThreatSpawner(delta){
+  if(_introActive) return;
   // First frame: spawn territory enemies already present when Destiny arrives
   if(!_initialEnemiesSpawned){
     _initialEnemiesSpawned=true;
@@ -9890,6 +9891,7 @@ function findAlertThreat() {
 }
 
 function updateThreats(delta, t) {
+  if(_introActive) return;
   var hasLive=false;
   for(var i=threats.length-1;i>=0;i--){
     var th=threats[i];
@@ -10122,6 +10124,7 @@ function drawMinimap() {}
 var dGroup=null, dParts=null;
 var _tv1=new THREE.Vector3(), _tv2=new THREE.Vector3(); // reusable per-frame scratch vectors
 var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=0.5;
+var _introActive=false; // true during new-game intro — freezes game logic
 var dSeqIdx=0, dBuildType=BUILD_SEQUENCE[0], dBuildPos=new THREE.Vector3(), dBuildRot=0;
 var dCurrentThreat=null;
 var dArtPos=new THREE.Vector3(), dArtPick='';     // art walk destination + type
@@ -10360,8 +10363,9 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
   var _saveExists=false;
   try{_saveExists=!!localStorage.getItem('td_dream_v1');}catch(e){}
   if(_saveExists) return; // returning player — skip intro
-  // hold BUILD_WAIT long enough for boot + intro to finish
-  dTimer=12.5;
+  // freeze game and hold BUILD_WAIT for the full sequence
+  _introActive=true;
+  dTimer=999;
   setTimeout(function(){
     var ov=document.createElement('div');
     ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:8000;pointer-events:none;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;font-family:"Courier New",monospace;';
@@ -10385,7 +10389,11 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
     setTimeout(function(){
       ov.style.transition='opacity 1.4s';
       ov.style.opacity='0';
-      setTimeout(function(){if(ov.parentNode)ov.parentNode.removeChild(ov);},1500);
+      setTimeout(function(){
+        if(ov.parentNode) ov.parentNode.removeChild(ov);
+        _introActive=false; // unfreeze — game starts now
+        dTimer=0.5;
+      },1500);
     },6000);
   },5200); // start after boot screen fades (~5100ms)
 })();
@@ -10676,6 +10684,7 @@ function _getBuildThought(type){
   return _BUILD_THOUGHTS[type]||'Placing '+type+'.';
 }
 function updateDestiny(delta, t) {
+  if(_introActive) return; // freeze all game logic during intro sequences
   // Ground ring — combat state: red pulse + expand; normal: green pulse
   var _isCombat=dState==='DEFEND_WALK'||dState==='DEFEND_ATTACK';
   if(!_isCombat){
