@@ -382,7 +382,7 @@
   <div style="font-size:28px;margin-bottom:20px;">🖥️</div>
   <div style="font-size:14px;letter-spacing:2px;color:#ffb000;margin-bottom:16px;">DESKTOP RECOMMENDED</div>
   <div style="font-size:11px;letter-spacing:1px;color:#00ff4188;line-height:1.8;margin-bottom:32px;">This world runs a live 3D AI agent 24/7.<br>On mobile it will drain your battery<br>and run hot. Open on a computer<br>for the full experience.</div>
-  <button onclick="document.getElementById('mobile-warning').style.display='none'" style="background:rgba(0,255,65,0.08);border:1px solid #00ff4144;color:#00ff4188;font-family:'Courier New',monospace;font-size:10px;letter-spacing:3px;padding:12px 28px;cursor:pointer;">CONTINUE ANYWAY</button>
+  <button onclick="document.getElementById('mobile-warning').style.display='none';if(typeof _introActive!=='undefined'&&_introActive){_introActive=false;dTimer=0.5;}" style="background:rgba(0,255,65,0.08);border:1px solid #00ff4144;color:#00ff4188;font-family:'Courier New',monospace;font-size:10px;letter-spacing:3px;padding:12px 28px;cursor:pointer;">CONTINUE ANYWAY</button>
 </div>
 <div id="scanlines"></div>
 <div id="threat-flash"></div>
@@ -10363,24 +10363,33 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
   var _saveExists=false;
   try{_saveExists=!!localStorage.getItem('td_dream_v1');}catch(e){}
   if(_saveExists) return; // returning player — skip intro
-  // freeze game and hold BUILD_WAIT for the full sequence
+  // freeze game until sequences finish
   _introActive=true;
   dTimer=999;
+  if(_MOBILE){
+    // Mobile already shows the warning overlay — that acts as the new-game gate.
+    // Just hold briefly for init then release so game starts when warning is dismissed.
+    setTimeout(function(){ _introActive=false; dTimer=0.5; },800);
+    return;
+  }
+  // Desktop: wait for boot screen to finish then show story overlay
   setTimeout(function(){
     var ov=document.createElement('div');
-    ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:8000;pointer-events:none;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;font-family:"Courier New",monospace;';
+    var _smol=window.innerWidth<900;
+    ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:998;pointer-events:all;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:'+(_smol?'10px':'14px')+';font-family:"Courier New",monospace;';
     document.body.appendChild(ov);
     var _lines=[
-      {t:300,  txt:'[ SIGNAL DETECTED ]',          col:'#00ff41', sz:'13px'},
-      {t:1000, txt:'DEPLOYING  DESTINY-1',          col:'#44ffaa', sz:'22px'},
-      {t:2000, txt:'DESTINATION: UNCHARTED SECTOR', col:'#aaffcc', sz:'12px'},
-      {t:3200, txt:'WARNING — TERRITORY OCCUPIED',  col:'#ff8800', sz:'14px'},
-      {t:4400, txt:'MISSION: CLAIM IT. SURVIVE.',   col:'#ffffff', sz:'14px'},
+      {t:300,  txt:'[ SIGNAL DETECTED ]',          col:'#00ff41', sz:_smol?'11px':'13px'},
+      {t:1000, txt:'DEPLOYING  DESTINY-1',          col:'#44ffaa', sz:_smol?'18px':'22px'},
+      {t:2000, txt:'DESTINATION: UNCHARTED SECTOR', col:'#aaffcc', sz:_smol?'10px':'12px'},
+      {t:3200, txt:'WARNING — TERRITORY OCCUPIED',  col:'#ff8800', sz:_smol?'11px':'14px'},
+      {t:4400, txt:'MISSION: CLAIM IT. SURVIVE.',   col:'#ffffff', sz:_smol?'11px':'14px'},
     ];
+    var _ls=_smol?'2px':'4px';
     _lines.forEach(function(l){
       setTimeout(function(){
         var el=document.createElement('div');
-        el.style.cssText='color:'+l.col+';font-size:'+l.sz+';letter-spacing:4px;opacity:0;text-shadow:0 0 20px currentColor;transition:opacity 0.7s;text-transform:uppercase;';
+        el.style.cssText='color:'+l.col+';font-size:'+l.sz+';letter-spacing:'+_ls+';opacity:0;text-shadow:0 0 20px currentColor;transition:opacity 0.7s;text-transform:uppercase;text-align:center;padding:0 16px;';
         el.textContent=l.txt;
         ov.appendChild(el);
         setTimeout(function(){el.style.opacity='1';},30);
