@@ -9857,7 +9857,7 @@ function findAlertThreat() {
   for(var i=0;i<threats.length;i++){
     var th=threats[i]; if(!th.alive||th.dissolving) continue;
     var d=th.group.position.distanceTo(dGroup.position);
-    if((th.nState==='ALERT'||th.nState==='ATTACK')&&d<14&&d<bd){ best=th; bd=d; }
+    if((th.nState==='ALERT'||th.nState==='ATTACK'||th.nState==='CURIOUS')&&d<14&&d<bd){ best=th; bd=d; }
   }
   return best;
 }
@@ -9923,8 +9923,18 @@ function updateThreats(delta, t) {
         var _pa=Math.random()*Math.PI*2, _pr=1.5+Math.random()*3.5;
         th.patrolTarget=new THREE.Vector3(th.homePos.x+Math.cos(_pa)*_pr,0,th.homePos.z+Math.sin(_pa)*_pr);
       }
-      // Expanded alert radius — enemies spot Destiny sooner
-      if(dPos&&dDist<th.alertRange*1.35){ th.nState='ALERT'; }
+      // MGS-style two-tier detection
+      if(dPos&&dDist<th.alertRange*0.72){
+        // Seen clearly at close range — full alert
+        th.nState='ALERT';
+        createBurst(th.group.position.clone().setY(2.2),0xff2200,7);
+      } else if(dPos&&dDist<th.alertRange*1.35){
+        // Suspicious at medium range — investigate
+        th.nState='CURIOUS';
+        if(!th._lastKnownPos) th._lastKnownPos=new THREE.Vector3();
+        th._lastKnownPos.copy(dPos);
+        createBurst(th.group.position.clone().setY(2.2),0xffee00,4);
+      }
       _tv1.subVectors(th.patrolTarget,th.group.position); _tv1.y=0;
       if(_tv1.length()>0.3){
         _tv1.normalize();
@@ -9933,17 +9943,66 @@ function updateThreats(delta, t) {
         th.pos.copy(th.group.position);
       }
 
+    } else if(th.nState==='CURIOUS'){
+      // ── Suspicious — cautious walk toward last known position ──────────
+      th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.5;
+      th.group.rotation.x=0.10;
+      if(!dPos){ th.nState='PATROL'; th.group.rotation.x=0; }
+      else if(dDist<th.alertRange*0.72){
+        // Got close enough — confirmed hostile
+        th.nState='ALERT'; th.group.rotation.x=0;
+        createBurst(th.group.position.clone().setY(2.2),0xff2200,9);
+        _d1Say('Incoming. Engaging.','chat',{lastEvent:'enemy spotted: '+th.type,question:'Short combat callout.'});
+      } else {
+        // Keep updating last known pos while still in sight
+        if(dDist<th.alertRange*1.4) th._lastKnownPos.copy(dPos);
+        // Walk cautiously toward investigation point
+        _tv1.subVectors(th._lastKnownPos,th.group.position); _tv1.y=0;
+        if(_tv1.length()>0.8){
+          _tv1.normalize();
+          th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);
+          th.group.position.addScaledVector(_tv1,THREAT_SPEED*th.speedMult*0.48*delta);
+          th.pos.copy(th.group.position);
+        } else {
+          // Reached point, found nothing — brief search then stand down
+          th.nState='SEARCH'; th._searchTimer=3.5+Math.random()*2.5;
+          createBurst(th.group.position.clone().setY(2.0),0xffaa00,4);
+        }
+      }
+
+    } else if(th.nState==='SEARCH'){
+      // ── Searching last known position — slow pan, watchful ────────────
+      th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.3;
+      th.group.rotation.y+=delta*(Math.sin(th.walkPhase*0.35)>0?0.85:-0.85);
+      if(!th._searchTimer) th._searchTimer=3;
+      th._searchTimer-=delta;
+      if(dPos&&dDist<th.alertRange*0.72){
+        th.nState='ALERT';
+        createBurst(th.group.position.clone().setY(2.2),0xff2200,9);
+      } else if(th._searchTimer<=0){
+        th.nState='RETURN';
+      }
+
     } else if(th.nState==='ALERT'){
       // Full charge — body slams forward, weapon raised
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH;
       th.group.rotation.x=0.22; // aggressive forward lean
       if(!dPos){ th.nState='RETURN'; th.group.rotation.x=0; }
       else if(dDist<1.6){ th.nState='ATTACK'; th.atkCooldown=th.atkRate*0.2; th.group.rotation.x=0; }
-      else if(dDist>th.alertRange*2.5){ th.nState='RETURN'; th.group.rotation.x=0; }
-      else {
+      else if(dDist>th.alertRange*2.5){
+        // Lost sight — search last known position before giving up
+        th.nState='SEARCH'; th._searchTimer=4+Math.random()*3;
+        if(!th._lastKnownPos) th._lastKnownPos=new THREE.Vector3();
+        if(dPos) th._lastKnownPos.copy(dPos);
+        th.group.rotation.x=0;
+        createBurst(th.group.position.clone().setY(2.0),0xffaa00,5);
+      } else {
         _tv1.subVectors(dPos,th.group.position); _tv1.y=0; _tv1.normalize();
         th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);
         if(th.weapon) th.weapon.rotation.x=-0.8; // weapon points at target
+        // Track last known while chasing
+        if(!th._lastKnownPos) th._lastKnownPos=new THREE.Vector3();
+        th._lastKnownPos.copy(dPos);
         // Erratic weave — harder to dodge
         _tv2.set(-_tv1.z,0,_tv1.x);
         var chargeSpd=THREAT_SPEED*th.speedMult*1.15; // 15% faster charge
@@ -10008,7 +10067,8 @@ function updateThreats(delta, t) {
     } else if(th.nState==='RETURN'){
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.5;
       // Re-alert if Destiny comes close during return
-      if(dPos&&dDist<th.alertRange){ th.nState='ALERT'; }
+      if(dPos&&dDist<th.alertRange*0.72){ th.nState='ALERT'; }
+      else if(dPos&&dDist<th.alertRange){ th.nState='CURIOUS'; if(!th._lastKnownPos)th._lastKnownPos=new THREE.Vector3(); th._lastKnownPos.copy(dPos); }
       th.group.rotation.x=0; // reset lean
       if(th.weapon){th.weapon.rotation.x=0;th.weapon.rotation.z=0;}
       if(th.gRing) th.gRing.material.color.setHex(th.glowMat.color?th.glowMat.color.getHex():0xffffff);
@@ -10267,6 +10327,28 @@ function buildDestiny() {
 
 dParts=buildDestiny(); dGroup=dParts.group;
 dBuildPos.set(0,0,0); dTarget.set(0,0,0);
+
+// ── Initial territory enemies — already patrolling when Destiny arrives ─
+setTimeout(function(){
+  var _initTypes=['goblinScout','forestRanger','goblinScout','tribeSoldier'];
+  for(var _ii=0;_ii<_initTypes.length;_ii++){
+    var _ia=(_ii/_initTypes.length)*Math.PI*2+Math.random()*0.6;
+    var _ir=11+Math.random()*7;
+    var _ihome=new THREE.Vector3(Math.cos(_ia)*_ir,0,Math.sin(_ia)*_ir);
+    var _idef=null;
+    for(var _ij=0;_ij<_NATIVE_TYPES.length;_ij++) if(_NATIVE_TYPES[_ij].type===_initTypes[_ii]){_idef=_NATIVE_TYPES[_ij];break;}
+    if(!_idef) continue;
+    var _ig=new THREE.Group(); var _ibuilt=_idef.builder(_ig);
+    _ig.scale.setScalar(_idef.sc); _ig.position.copy(_ihome); scene.add(_ig);
+    threats.push({group:_ig,glowMat:_ibuilt.glowMat,shell:_ibuilt.shell,shell2:_ibuilt.shell2,
+      weapon:_ibuilt.weapon,gRing:_ibuilt.gRing,pos:_ihome.clone(),
+      alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
+      hp:_idef.hp,maxHp:_idef.hp,type:_idef.type,rank:_idef.rank,speedMult:_idef.spd,
+      walkPhase:Math.random()*Math.PI*2,homePos:_ihome.clone(),patrolTarget:_ihome.clone(),
+      nState:'PATROL',alertRange:_idef.alertR,alertTimer:0,atkCooldown:0,
+      atkRate:3.6,atkDmg:4,chargeTimer:0});
+  }
+},900);
 
 // ════════════════════════════════════════════════════════════════════
 // ── WORLD BARRIER ZONES ──────────────────────────────────────────────
@@ -10571,7 +10653,7 @@ function updateDestiny(delta, t) {
      dState==='GATHER_WALK'||dState==='GATHERING'||dState==='GATHER_RETURN'||
      dState==='RARE_WALK'||dState==='RARE_GATHER'||dState==='RARE_RETURN'||
      dState==='UPGRADE_WALK'||dState==='EXPLORE_WALK'||dState==='EXPLORE_LINGER'||
-     dState==='SCOUT_WALK'||dState==='SCOUT_SURVEY'||
+     dState==='SCOUT_WALK'||dState==='SCOUT_SURVEY'||dState==='CURIOUS'||dState==='SEARCH'||
      dState==='ART_WALK'||dState==='ART_PLACE'){
     var th=findAlertThreat();
     if(th){
