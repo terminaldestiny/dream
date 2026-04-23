@@ -8141,10 +8141,37 @@ var killEl=document.getElementById('kills-val');
 
 // ── Threat spawner (sporadic raids, no waves) ─────────────────────────
 var threatSpawnTimer=50.0;
+var _initialEnemiesSpawned=false;
 var waveNumEl=document.getElementById('wave-num');
 var waveInfoEl=document.getElementById('wave-info');
 
 function updateThreatSpawner(delta){
+  // First frame: spawn territory enemies already present when Destiny arrives
+  if(!_initialEnemiesSpawned){
+    _initialEnemiesSpawned=true;
+    var _iTypes=['goblinScout','forestRanger','goblinScout','tribeSoldier'];
+    for(var _ii=0;_ii<_iTypes.length;_ii++){
+      var _ia=(_ii*Math.PI*0.5)+Math.random()*0.7-0.35;
+      var _ir=12+Math.random()*6;
+      var _ihp=new THREE.Vector3(Math.cos(_ia)*_ir,0,Math.sin(_ia)*_ir);
+      var _idf=null;
+      for(var _ij=0;_ij<_NATIVE_TYPES.length;_ij++) if(_NATIVE_TYPES[_ij].type===_iTypes[_ii]){_idf=_NATIVE_TYPES[_ij];break;}
+      if(!_idf) _idf=_NATIVE_TYPES[0];
+      var _igrp=new THREE.Group(); var _ibb=_idf.builder(_igrp);
+      // Add name-tag sprite (same as spawnThreat)
+      var _itex=_NT[_idf.type]||_NT['goblinScout'];
+      var _ispr=new THREE.Sprite(new THREE.SpriteMaterial({map:_itex,transparent:true,blending:THREE.AdditiveBlending}));
+      _ispr.scale.set(5.6,1.05,1); _ispr.position.y=_idf.sc*2.8+0.8; _igrp.add(_ispr);
+      _igrp.scale.setScalar(_idf.sc); _igrp.position.copy(_ihp); scene.add(_igrp);
+      threats.push({group:_igrp,glowMat:_ibb.glowMat,shell:_ibb.shell,shell2:_ibb.shell2,
+        weapon:_ibb.weapon,gRing:_ibb.gRing,pos:_ihp.clone(),
+        alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
+        hp:_idf.hp,maxHp:_idf.hp,type:_idf.type,rank:_idf.rank,speedMult:_idf.spd,
+        walkPhase:Math.random()*Math.PI*2,homePos:_ihp.clone(),patrolTarget:_ihp.clone(),
+        nState:'PATROL',alertRange:_idf.alertR,alertTimer:0,atkCooldown:0,
+        atkRate:3.6,atkDmg:4,chargeTimer:0});
+    }
+  }
   var aliveCount=0;
   for(var i=0;i<structures.length;i++) if(structures[i].alive) aliveCount++;
   var activeThreatCount=0;
@@ -10044,7 +10071,7 @@ function updateThreats(delta, t) {
       if(!dPos||dDist>5.5){th.nState='ALERT';if(th.gRing)th.gRing.material.color.setHex(0xffffff);}
       // Deal damage to Destiny
       th.atkCooldown-=delta;
-      if(th.atkCooldown<=0&&dGroup&&dDist<3.2){
+      if(th.atkCooldown<=0&&dGroup&&dDist<3.2&&dState!=='STUNNED'){
         th.atkCooldown=th.atkRate;
         destinyHP=Math.max(0,destinyHP-th.atkDmg);
         createBurst(dGroup.position.clone().setY(1.0),0xff0000,16);
@@ -10094,7 +10121,7 @@ function drawMinimap() {}
 
 var dGroup=null, dParts=null;
 var _tv1=new THREE.Vector3(), _tv2=new THREE.Vector3(); // reusable per-frame scratch vectors
-var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=0.5;
+var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=9.5; // held for intro
 var dSeqIdx=0, dBuildType=BUILD_SEQUENCE[0], dBuildPos=new THREE.Vector3(), dBuildRot=0;
 var dCurrentThreat=null;
 var dArtPos=new THREE.Vector3(), dArtPick='';     // art walk destination + type
@@ -10328,27 +10355,34 @@ function buildDestiny() {
 dParts=buildDestiny(); dGroup=dParts.group;
 dBuildPos.set(0,0,0); dTarget.set(0,0,0);
 
-// ── Initial territory enemies — already patrolling when Destiny arrives ─
-setTimeout(function(){
-  var _initTypes=['goblinScout','forestRanger','goblinScout','tribeSoldier'];
-  for(var _ii=0;_ii<_initTypes.length;_ii++){
-    var _ia=(_ii/_initTypes.length)*Math.PI*2+Math.random()*0.6;
-    var _ir=11+Math.random()*7;
-    var _ihome=new THREE.Vector3(Math.cos(_ia)*_ir,0,Math.sin(_ia)*_ir);
-    var _idef=null;
-    for(var _ij=0;_ij<_NATIVE_TYPES.length;_ij++) if(_NATIVE_TYPES[_ij].type===_initTypes[_ii]){_idef=_NATIVE_TYPES[_ij];break;}
-    if(!_idef) continue;
-    var _ig=new THREE.Group(); var _ibuilt=_idef.builder(_ig);
-    _ig.scale.setScalar(_idef.sc); _ig.position.copy(_ihome); scene.add(_ig);
-    threats.push({group:_ig,glowMat:_ibuilt.glowMat,shell:_ibuilt.shell,shell2:_ibuilt.shell2,
-      weapon:_ibuilt.weapon,gRing:_ibuilt.gRing,pos:_ihome.clone(),
-      alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
-      hp:_idef.hp,maxHp:_idef.hp,type:_idef.type,rank:_idef.rank,speedMult:_idef.spd,
-      walkPhase:Math.random()*Math.PI*2,homePos:_ihome.clone(),patrolTarget:_ihome.clone(),
-      nState:'PATROL',alertRange:_idef.alertR,alertTimer:0,atkCooldown:0,
-      atkRate:3.6,atkDmg:4,chargeTimer:0});
-  }
-},900);
+// ── Intro sequence ────────────────────────────────────────────────────
+(function(){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:8000;pointer-events:none;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;font-family:"Courier New",monospace;';
+  document.body.appendChild(ov);
+  var _lines=[
+    {t:300,  txt:'[ SIGNAL DETECTED ]',          col:'#00ff41', sz:'13px'},
+    {t:1400, txt:'DEPLOYING  DESTINY-1',          col:'#44ffaa', sz:'22px'},
+    {t:2800, txt:'DESTINATION: UNCHARTED SECTOR', col:'#aaffcc', sz:'12px'},
+    {t:4000, txt:'WARNING — TERRITORY OCCUPIED',  col:'#ff8800', sz:'14px'},
+    {t:5200, txt:'MISSION: CLAIM IT. SURVIVE.',   col:'#ffffff', sz:'14px'},
+  ];
+  _lines.forEach(function(l){
+    setTimeout(function(){
+      var el=document.createElement('div');
+      el.style.cssText='color:'+l.col+';font-size:'+l.sz+';letter-spacing:4px;opacity:0;text-shadow:0 0 20px currentColor;transition:opacity 0.7s;text-transform:uppercase;';
+      el.textContent=l.txt;
+      ov.appendChild(el);
+      setTimeout(function(){el.style.opacity='1';},30);
+    },l.t);
+  });
+  setTimeout(function(){
+    ov.style.transition='opacity 1.4s';
+    ov.style.opacity='0';
+    setTimeout(function(){if(ov.parentNode)ov.parentNode.removeChild(ov);},1500);
+  },7800);
+})();
+
 
 // ════════════════════════════════════════════════════════════════════
 // ── WORLD BARRIER ZONES ──────────────────────────────────────────────
@@ -11019,29 +11053,30 @@ function updateDestiny(delta, t) {
     // ── Death sequence entry ───────────────────────────────────────────
     if(!_stunInitDone){
       _stunInitDone=true; _deathCount++;
-      // Burst at fall point
+      dCurrentThreat=null; // release combat lock
       createBurst(dGroup.position.clone().setY(1.0),0xff0000,55);
       createBurst(dGroup.position.clone().setY(0.3),0xff6600,30);
       createBurst(dGroup.position.clone().setY(1.8),0xffffff,20);
       destinyChat('DESTINY-1 OFFLINE. Rebooting...');
       journalNote('💀 Fell in combat (death #'+_deathCount+'). Rebooting at base.','💀');
-      _spawnThoughtBubble('OFFLINE');
       setStatus('OFFLINE');
-      _hitFlashTimer=0; // prevent hit-flash decay from clearing our overlay
+      // CSS transition for overlay — one write, no per-frame updates
+      if(_hitFlash){
+        _hitFlashTimer=0;
+        _hitFlash.style.transition='none';
+        _hitFlash.style.background='rgba(140,0,0,0.55)';
+        setTimeout(function(){
+          if(_hitFlash){_hitFlash.style.transition='background 4.8s linear';_hitFlash.style.background='rgba(140,0,0,0)';}
+          _hitFlashTimer=0;
+        },600);
+      }
     }
     // Body fall — pitches forward over first 0.4s then lies flat
     var _fallProg=Math.min(1,(6-dTimer)/0.4);
     dGroup.rotation.x=_fallProg*1.4;
-    // Weak ground twitch when fully down
     if(_fallProg>=1){
       dParts.armLPivot.rotation.x=Math.sin(t*1.8)*0.10;
       dParts.armRPivot.rotation.x=Math.sin(t*1.8+1.2)*0.10;
-    }
-    // Death overlay — deep red, fades out over the stun duration
-    if(_hitFlash){
-      var _da=0.52*Math.max(0,(dTimer-0.8)/5.2);
-      _hitFlash.style.background='rgba(160,0,0,'+_da.toFixed(2)+')';
-      _hitFlashTimer=0;
     }
     dTimer-=delta;
     if(dTimer<=0){
