@@ -7986,7 +7986,7 @@ function _d1PrefetchAction() {
     var action=parts[0]?parts[0].toLowerCase().trim():'explore';
     if(action.indexOf('build')>=0){
       _D1_NEXT_ACTION='build';
-      journalNote('→ NEXT: build','🏗');
+      journalNote('[DESTINY AI] → build','🏗');
     } else if(action.indexOf('gather')>=0){
       _D1_NEXT_ACTION='gather';
       var _rDetail=(parts[1]||'').trim()||'rare resource';
@@ -7994,21 +7994,21 @@ function _d1PrefetchAction() {
       if(rv.indexOf('lumite')>=0) _D1_PENDING_RARE='lumite';
       else if(rv.indexOf('deepiron')>=0||rv.indexOf('deep')>=0) _D1_PENDING_RARE='deepIron';
       else if(rv.indexOf('ancient')>=0||rv.indexOf('stone')>=0) _D1_PENDING_RARE='ancientStone';
-      journalNote('→ GATHER: '+(_D1_PENDING_RARE||_rDetail),'⛏');
+      journalNote('[DESTINY AI] → gather: '+(_D1_PENDING_RARE||_rDetail),'⛏');
     } else if(action.indexOf('scout')>=0){
       _D1_NEXT_ACTION='scout';
-      journalNote('→ SCOUT: perimeter run','🔭');
+      journalNote('[DESTINY AI] → scout','🔭');
     } else if(action.indexOf('art')>=0){
       _D1_NEXT_ACTION='art';
       var artType=(parts[1]||'totem').toLowerCase().trim();
       var artZone=(parts[2]||'mid').toLowerCase().trim();
       if(['base','mid','far'].indexOf(artZone)===-1) artZone='mid';
       _D1_PENDING_ART={pick:artType,zone:artZone};
-      journalNote('→ ART: '+artType+' @ '+artZone,'🎨');
+      journalNote('[DESTINY AI] → art: '+artType+' @ '+artZone,'🎨');
     } else {
       _D1_NEXT_ACTION='explore';
       if(parts[1]) _D1_PENDING_EXPLORE=parts[1].trim().toUpperCase();
-      journalNote('→ EXPLORE: '+(parts[1]?parts[1].trim():'world'),'🗺');
+      journalNote('[DESTINY AI] → explore: '+(parts[1]?parts[1].trim():'world'),'🗺');
     }
   });
 }
@@ -8058,7 +8058,7 @@ var DESTINY_BRAIN = {
       _D1_LAST_BUILD_RESP = parts[0]?parts[0].trim():resp;
       var z=parts[1]?parts[1].trim().toLowerCase():'mid';
       _D1_PENDING_BUILD_ZONE = (['center','mid','edge'].indexOf(z)>=0)?z:'mid';
-      journalNote('→ BUILD: '+_D1_LAST_BUILD_RESP+' @ '+_D1_PENDING_BUILD_ZONE,'🏗');
+      journalNote('[DESTINY AI] → build: '+_D1_LAST_BUILD_RESP+' @ '+_D1_PENDING_BUILD_ZONE,'🏗');
     });
   },
   // Called when DESTINY is about to start an art project — AI picks type
@@ -8164,7 +8164,7 @@ var _E1_PENDING_RARE = null;
 function _e1State(extra) {
   var s = {
     resources: {
-      '$DESTINY': Math.round(res.compute||0),
+      compute: Math.round(res.compute||0),
       wood:  Math.round(res.wood||0),
       stone: Math.round(res.stone||0),
       lumite: Math.round(res.lumite||0)
@@ -8192,8 +8192,7 @@ function _e1Think(hook, extra, cb) {
       try {
         var r = JSON.parse(xhr.responseText);
         var resp = r.response||null;
-        if(resp) resp = resp.replace(/\bcompute\b/gi,'$DESTINY');
-        cb(resp);
+        cb(resp); // no renaming — ELIZA uses her own vocabulary
       } catch(e){ cb(null); }
     } else { cb(null); }
   };
@@ -8266,7 +8265,7 @@ var ELIZA_BRAIN = {
       if(resp){
         var t=resp.trim().toLowerCase().split(/\s/)[0];
         _E1_LAST_BUILD_RESP=t;
-        journalNote('→ ELIZA BUILD: '+t,'🔧');
+        journalNote('[ELIZA AI] → build: '+t,'🔧');
       }
     });
   },
