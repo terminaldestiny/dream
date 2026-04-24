@@ -10505,7 +10505,14 @@ var _ELIZA_THOUGHTS=[
   'No threats detected. Yet.',
 ];
 
-function elizaChat(msg){
+var _elizaChatLastMs=0;
+var _ELIZA_BUBBLE_GAP=18000; // ms — same rough cadence as AI API calls
+function elizaChat(msg, force){
+  if(!force){
+    var _now=Date.now();
+    if(_now-_elizaChatLastMs<_ELIZA_BUBBLE_GAP) return;
+    _elizaChatLastMs=_now;
+  }
   _spawnThoughtBubble(msg, elizaGroup);
 }
 function elizaSetStatus(s){
@@ -10564,7 +10571,7 @@ function updateEliza(delta, t){
         resourceNodes[eRareNodeIdx].claimed=false;
       eRareNodeIdx=-1;
       _eCurrentThreat=_eth;
-      elizaChat(_NATIVE_CHAT[_eth.type]||'Contact. Engaging.');
+      elizaChat(_NATIVE_CHAT[_eth.type]||'Contact. Engaging.', true);
       eState='DEFEND_WALK'; elizaSetStatus('DEFENDING');
     }
   }
@@ -10850,7 +10857,7 @@ function updateEliza(delta, t){
       createBurst(eg.position.clone().setY(1.0),0xff4400,55);
       createBurst(eg.position.clone().setY(0.3),0xff8800,30);
       createBurst(eg.position.clone().setY(1.8),0xffffff,20);
-      elizaChat('ELIZA OFFLINE. Rebooting...');
+      elizaChat('ELIZA OFFLINE. Rebooting...', true);
       journalNote('💀 ELIZA fell in combat (death #'+_eDeathCount+'). Rebooting.','💀');
       elizaSetStatus('OFFLINE');
     }
