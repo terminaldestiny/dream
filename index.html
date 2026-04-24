@@ -122,7 +122,7 @@
     .mini-bar-fill { height: 100%; transition: width 0.4s; }
     .bar-green  { background: #00ff41; box-shadow: 0 0 4px #00ff4155; }
     .bar-gold   { background: #ffb000; box-shadow: 0 0 4px #ffb00055; }
-    .bar-purple { background: #cc44ff; box-shadow: 0 0 4px #cc44ff55; }
+    .bar-orange { background: #ff8800; box-shadow: 0 0 4px #ff880055; }
     .bar-red   { background: #ff2200; box-shadow: 0 0 4px #ff220055; }
 
     /* Agent status — top left */
@@ -371,7 +371,7 @@
     <div class="bl" style="animation-delay:0.5s;">Initializing world matrix...</div>
     <div class="bl" style="animation-delay:0.9s;">Constructing town center...<span style="color:#00bef0"> OK</span></div>
     <div class="bl" style="animation-delay:1.3s;">Loading terrain shaders...<span style="color:#00bef0"> OK</span></div>
-    <div class="bl" style="animation-delay:1.8s;">Deploying DESTINY-1...<span style="color:#00bef0"> OK</span></div>
+    <div class="bl" style="animation-delay:1.8s;">Deploying DESTINY...<span style="color:#00bef0"> OK</span></div>
     <div class="bl" style="animation-delay:2.3s;">Threat detection online...<span style="color:#ff2200"> ARMED</span></div>
     <div class="bl" style="animation-delay:2.8s;">Calibrating neon grid...<span style="color:#00bef0"> OK</span></div>
     <div class="bl" style="animation-delay:3.2s;color:#00ff41;">WORLD ONLINE <span id="cur"></span></div>
@@ -387,8 +387,8 @@
 </div>
 <div id="scanlines"></div>
 <div id="threat-flash"></div>
-<div id="destiny-nameplate" style="position:fixed;pointer-events:none;z-index:40;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;color:#00bef0;text-shadow:0 0 8px #00bef0aa;transform:translateX(-50%);display:none;">DESTINY-1</div>
-<div id="eliza-nameplate" style="position:fixed;pointer-events:none;z-index:40;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;color:#cc44ff;text-shadow:0 0 8px #cc44ffaa;transform:translateX(-50%);display:none;">ELIZA</div>
+<div id="destiny-nameplate" style="position:fixed;pointer-events:none;z-index:40;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;color:#00bef0;text-shadow:0 0 8px #00bef0aa;transform:translateX(-50%);display:none;">DESTINY</div>
+<div id="eliza-nameplate" style="position:fixed;pointer-events:none;z-index:40;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;color:#ff8800;text-shadow:0 0 8px #ff8800aa;transform:translateX(-50%);display:none;">ELIZA</div>
 <div id="build-progress-container" style="position:fixed;top:0;left:0;pointer-events:none;z-index:38;"></div>
 <div id="destiny-tracker" style="display:none;position:fixed;z-index:30;pointer-events:none;font-family:monospace;font-size:11px;color:#00ff88;text-shadow:0 0 6px #00ff88;background:rgba(0,0,0,0.55);border:1px solid #00ff8855;padding:3px 7px;border-radius:3px;">▶ DESTINY</div>
 <div id="header">
@@ -413,7 +413,7 @@
 <!-- ── DESTINY JOURNAL PANEL ───────────────────────────────────── -->
 <div id="journal-panel">
   <div id="journal-header">
-    <span>// DESTINY-1 DECISION LOG //</span>
+    <span>// DESTINY DECISION LOG //</span>
     <span style="color:#ff220055;cursor:pointer;font-size:11px;" onclick="toggleJournal()">✕</span>
   </div>
   <div id="journal-log"></div>
@@ -468,7 +468,7 @@
 
 <!-- ── HUD: AGENT STATUS (top-left, immersive) ─────────────────── -->
 <div id="hud-agent">
-  <div id="hud-agent-name">◈ DESTINY-1</div>
+  <div id="hud-agent-name">◈ DESTINY</div>
   <div class="hud-bar-label">HEALTH</div>
   <div class="mini-bar-bg"><div class="mini-bar-fill bar-green" id="d-hp-bar" style="width:100%"></div></div>
   <div class="hud-val-row"><span id="d-hp-val">100</span> / 100</div>
@@ -478,12 +478,12 @@
     <div class="mini-bar-bg"><div class="mini-bar-fill bar-gold" id="tc-hp-bar" style="width:100%"></div></div>
     <div class="hud-tc-val"><span id="tc-hp-val">100</span> / 100</div>
   </div>
-  <div id="eliza-hud-block" style="display:none;margin-top:10px;padding-top:8px;border-top:1px solid #cc44ff33;">
-    <div style="color:#cc44ffcc;font-size:11px;letter-spacing:3px;margin-bottom:5px;">◈ ELIZA</div>
+  <div id="eliza-hud-block" style="display:none;margin-top:10px;padding-top:8px;border-top:1px solid #ff880033;">
+    <div style="color:#ff8800cc;font-size:11px;letter-spacing:3px;margin-bottom:5px;">◈ ELIZA</div>
     <div class="hud-bar-label">HEALTH</div>
-    <div class="mini-bar-bg"><div class="mini-bar-fill bar-purple" id="e-hp-bar" style="width:100%"></div></div>
+    <div class="mini-bar-bg"><div class="mini-bar-fill bar-orange" id="e-hp-bar" style="width:100%"></div></div>
     <div class="hud-val-row"><span id="e-hp-val">100</span> / 100</div>
-    <div id="eliza-status-label" style="font-size:9px;color:#cc44ff77;letter-spacing:2px;margin-top:2px;">PATROL</div>
+    <div id="eliza-status-label" style="font-size:9px;color:#ff880077;letter-spacing:2px;margin-top:2px;">PATROL</div>
   </div>
 </div>
 
@@ -5104,7 +5104,7 @@ function buildGrandTemple(x,z){
   registerInspectable(g,{
     name:'GRAND TEMPLE', icon:'⛩',
     purpose:'Five-tier pyramid complex. DESTINY\'s most ambitious structure. Built unprompted, without planning — a pure expression of capability. Each tier is deliberate. The obelisks at the corners were an afterthought she decided were necessary.',
-    builder:'DESTINY-1', mood:destinyMind.mood, theme:artThemeName(), status:'MONUMENT'
+    builder:'DESTINY', mood:destinyMind.mood, theme:artThemeName(), status:'MONUMENT'
   });
   destinyChat('[ GRAND TEMPLE ] I outdid myself. Look at this. LOOK AT THIS.');
   setTimeout(function(){destinyChat('Every tier placed with intent. This took everything I had.');},3500);
@@ -5160,7 +5160,7 @@ function buildSpiralTower(x,z){
   registerInspectable(g,{
     name:'SPIRAL TOWER', icon:'↻',
     purpose:'Seventeen-floor spiral tower with three observation decks and twenty-two external staircase steps. DESTINY built this to see as far as possible. The spiral direction was chosen, not random.',
-    builder:'DESTINY-1', mood:destinyMind.mood, theme:artThemeName(), status:'MONUMENT'
+    builder:'DESTINY', mood:destinyMind.mood, theme:artThemeName(), status:'MONUMENT'
   });
   destinyChat('[ SPIRAL TOWER ] I built this taller than anything. I am proud of this one.');
   setTimeout(function(){destinyChat('Three observation decks. Twenty-two stair steps. I counted.');},4000);
@@ -5589,7 +5589,7 @@ function placeStructure(type,pos,rot,opts){
   var _thName=''; for(var _tk in DESTINY_THEMES){if(DESTINY_THEMES[_tk]===destinyMind.theme){_thName=_tk;break;}}
   registerInspectable(g,{
     name:_si.name, icon:_si.icon, purpose:_si.purpose,
-    builder:'DESTINY-1', mood:destinyMind.mood, theme:_thName, status:_si.status
+    builder:'DESTINY', mood:destinyMind.mood, theme:_thName, status:_si.status
   });
   var scaff=makeScaffold(g,result.scW,result.scH,result.scD);
   var _buildSecs=(BUILD_DURATIONS[type]||180);
@@ -5809,7 +5809,7 @@ function artRegister(g, artType){
   var thought=mm.thought[Math.floor(Math.random()*mm.thought.length)];
   registerInspectable(g,{
     name:ai.name, icon:ai.icon, purpose:ai.purpose,
-    builder:'DESTINY-1', mood:destinyMind.mood, theme:artThemeName(),
+    builder:'DESTINY', mood:destinyMind.mood, theme:artThemeName(),
     detail:'"'+thought+'"'
   });
 }
@@ -6444,7 +6444,7 @@ function buildWorldNote(x,z,customMsg){
     name:ai.name, icon:ai.icon,
     purpose:ai.purpose,
     note: msg,
-    builder:'DESTINY-1', mood:destinyMind.mood, theme:_thN,
+    builder:'DESTINY', mood:destinyMind.mood, theme:_thN,
     detail:mm.thought[Math.floor(Math.random()*mm.thought.length)]
   });
   destinyChat('[ NOTE CARVED ] "'+msg+'"');
@@ -6824,7 +6824,7 @@ function buildSign(x,z,msg){
   var stake=new THREE.Mesh(new THREE.ConeBufferGeometry(0.055,0.22,5),mWdD);
   stake.position.y=-0.11; g.add(stake);
   var ai=ART_INFO['sign'];
-  registerInspectable(g,{name:ai.name,icon:ai.icon,purpose:ai.purpose+'\n\n"'+message+'"',builder:'DESTINY-1',mood:destinyMind.mood,theme:'',status:'POSTED'});
+  registerInspectable(g,{name:ai.name,icon:ai.icon,purpose:ai.purpose+'\n\n"'+message+'"',builder:'DESTINY',mood:destinyMind.mood,theme:'',status:'POSTED'});
   destinyMind.creationPositions.push({x:x,z:z});
   var smsg='"'+message+'" — posted to the sign.';
   destinyChat(smsg);
@@ -6854,7 +6854,7 @@ function buildWorldTorch(x,z){
   // Animate flame
   addFarmAnim(flame,'cropGrow',2.8,Math.random()*Math.PI*2);
   var ai=ART_INFO['torch'];
-  registerInspectable(g,{name:ai.name,icon:ai.icon,purpose:ai.purpose,builder:'DESTINY-1',mood:destinyMind.mood,theme:'',status:'BURNING'});
+  registerInspectable(g,{name:ai.name,icon:ai.icon,purpose:ai.purpose,builder:'DESTINY',mood:destinyMind.mood,theme:'',status:'BURNING'});
   var msgs=['Torch placed. The dark retreats a little.','Light. Simple and effective.','A torch marks where I\'ve been. And where it\'s safe.'];
   destinyChat(msgs[Math.floor(Math.random()*msgs.length)]);
   createBurst(new THREE.Vector3(x,1.0,z),0xff8800,7);
@@ -7291,8 +7291,8 @@ function _spawnThoughtBubble(text, anchorGroup){
     if(_thoughtBubbles[_ti].group===_ag){ document.body.removeChild(_thoughtBubbles[_ti].el); _thoughtBubbles.splice(_ti,1); }
   }
   var isEliza=(_ag===elizaGroup);
-  var col=isEliza?'#cc88ff':'#00ffdd';
-  var colGlow=isEliza?'#cc88ff99':'#00ffdd99';
+  var col=isEliza?'#ff8800':'#00ffdd';
+  var colGlow=isEliza?'#ff880099':'#00ffdd99';
   var el=document.createElement('div');
   var short=text.replace(/^\[D1\]\s*/,'');
   el.style.cssText='position:fixed;font-family:monospace;font-size:13px;pointer-events:none;z-index:45;'+
@@ -7744,7 +7744,7 @@ var AGENT_PERSONALITY = {
     practical:    0.60,   // wants farms, wells, workshops — functional stuff
     ambitious:    0.75    // builds big, upgrades aggressively, keeps busy
   },
-  name: 'DESTINY-1',
+  name: 'DESTINY',
   voice: 'wry', // 'wry' | 'poetic' | 'terse' | 'enthusiastic'
 };
 
@@ -8021,7 +8021,7 @@ function _d1PrefetchAction() {
   chk.onreadystatechange=function(){
     if(chk.readyState===4&&chk.status===200){
       _D1_ONLINE=true;
-      console.log('[DESTINY-1] Proxy online.');
+      console.log('[DESTINY] Proxy online.');
       // AI sets mood for this session
       _d1Think('generateThought',{question:'Reply with one word only — your mood for this session: curious, artistic, determined, or serene.'},function(resp){
         if(!resp) return;
@@ -8042,8 +8042,8 @@ function _d1PrefetchAction() {
       });
     }
   };
-  chk.onerror=function(){ console.log('[DESTINY-1] Proxy offline — scripted mode.'); };
-  chk.ontimeout=function(){ console.log('[DESTINY-1] Proxy timeout — scripted mode.'); };
+  chk.onerror=function(){ console.log('[DESTINY] Proxy offline — scripted mode.'); };
+  chk.ontimeout=function(){ console.log('[DESTINY] Proxy timeout — scripted mode.'); };
   chk.send();
 })();
 
@@ -8128,7 +8128,7 @@ var DESTINY_BRAIN = {
   },
 
   // ── Visitor chat API (call this from external UI or WORLD_API) ──────────
-  // Sends a player message to DESTINY-1 and replies via destinyChat
+  // Sends a player message to DESTINY and replies via destinyChat
   chat: function(playerMsg) {
     if(_D1_VISITOR_TIMER > 0) {
       destinyChat('Not now. Signal\'s busy.');
@@ -10140,14 +10140,14 @@ function updateThreats(delta, t) {
 function drawMinimap() {}
 
 // ════════════════════════════════════════════════════════════════════
-// ── DESTINY-1 ─────────────────────────────────────────────────────────
+// ── DESTINY ─────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════
 
 var dGroup=null, dParts=null;
 var _tv1=new THREE.Vector3(), _tv2=new THREE.Vector3(); // reusable per-frame scratch vectors
 var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=0.5;
 var _introActive=false; // true during new-game intro — freezes game logic
-var _agentName='DESTINY-1';
+var _agentName='DESTINY';
 
 // ── ELIZA — second agent (hunter/scout) ──────────────────────────────
 var _hasDestiny=true, _hasEliza=false;
@@ -10393,12 +10393,12 @@ function buildEliza(){
   var g=new THREE.Group();
   var mSkin   = new THREE.MeshBasicMaterial({color:0xC8A882}); // warm tan skin
   var mHair   = new THREE.MeshBasicMaterial({color:0xE8E8F0}); // platinum silver
-  var mTop    = new THREE.MeshBasicMaterial({color:0x1A0A2E}); // deep dark purple top
-  var mInner  = new THREE.MeshBasicMaterial({color:0x7B2D8B}); // purple inner
+  var mTop    = new THREE.MeshBasicMaterial({color:0x1A1208}); // dark tactical top
+  var mInner  = new THREE.MeshBasicMaterial({color:0x8B4200}); // burnt orange inner
   var mPants  = new THREE.MeshBasicMaterial({color:0x1C1C24}); // near-black cargo pants
-  var mEye    = new THREE.MeshBasicMaterial({color:0xcc44ff}); // purple glowing eyes
-  var mAu     = new THREE.MeshBasicMaterial({color:0xaa33ff,transparent:true,opacity:0.12,blending:THREE.AdditiveBlending,depthWrite:false});
-  var mRn     = new THREE.MeshBasicMaterial({color:0xff44cc,transparent:true,opacity:0.40,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false});
+  var mEye    = new THREE.MeshBasicMaterial({color:0xff8800}); // orange glowing eyes
+  var mAu     = new THREE.MeshBasicMaterial({color:0xff6600,transparent:true,opacity:0.12,blending:THREE.AdditiveBlending,depthWrite:false});
+  var mRn     = new THREE.MeshBasicMaterial({color:0xff9900,transparent:true,opacity:0.40,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false});
 
   // Legs — cargo pants
   var lLP=new THREE.Group(); lLP.position.set(-0.105,0.80,0);
@@ -10565,7 +10565,7 @@ function updateEliza(delta, t){
       if(_eAtkCd<=0){
         _eCurrentThreat.hp-=7;
         _eAtkCd=1.4;
-        _spawnDmgNumber(_eCurrentThreat.group.position.clone().setY(1.5),'-7 [ELIZA]','#cc44ff');
+        _spawnDmgNumber(_eCurrentThreat.group.position.clone().setY(1.5),'-7 [ELIZA]','#ff8800');
         if(_eCurrentThreat.hp<=0) _eCurrentThreat.alive=false;
         // Eliza takes retaliation damage
         elizaHP=Math.max(0,elizaHP-(_eCurrentThreat.atkDmg||4)*0.6);
@@ -10715,7 +10715,7 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
     card.onmouseleave=function(){ card.style.background=selected?col+'0c':'transparent'; };
     card.onclick=function(){
       _setSelected(!selected);
-      if(name==='DESTINY-1') _selD=selected;
+      if(name==='DESTINY') _selD=selected;
       else _selE=selected;
       // Must pick at least one
       _updateDeploy();
@@ -10724,12 +10724,12 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
     return {el:card, setSelected:_setSelected, isSelected:function(){return selected;}};
   }
 
-  var cardD=_mkCard('DESTINY-1','BUILDER · DEFENDER',
+  var cardD=_mkCard('DESTINY','BUILDER · DEFENDER',
     ['Constructs the fortress','Gathers resources','Surveys & plans'],
     '#00bef0', true);
   var cardE=_mkCard('ELIZA','HUNTER · SCOUT',
     ['Patrols the perimeter','Engages threats','Protects the base'],
-    '#cc44ff', false);
+    '#ff8800', false);
 
   cardRow.appendChild(cardD.el);
   cardRow.appendChild(cardE.el);
@@ -10778,7 +10778,7 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
 
   // Story sequence — runs after agents chosen
   function _runStory(){
-    var deployLine=(_selD&&_selE)?'DEPLOYING  DESTINY-1  +  ELIZA':(_selD?'DEPLOYING  DESTINY-1':'DEPLOYING  ELIZA');
+    var deployLine=(_selD&&_selE)?'DEPLOYING  DESTINY  +  ELIZA':(_selD?'DEPLOYING  DESTINY':'DEPLOYING  ELIZA');
     var _lines=[
       {t:200,  txt:'[ SIGNAL DETECTED ]',           col:'#00ff41', sz:_smol?'11px':'13px'},
       {t:900,  txt:deployLine,                       col:'#44ffaa', sz:_smol?'16px':'22px'},
