@@ -9578,11 +9578,11 @@ var _NATIVE_TYPES=[
   {type:'mercenary',     rank:'elite',    hp:24, spd:0.88, sc:0.92, alertR:9.5,  builder:buildMercenary,     banTitle:'HIRED BLADE',      banSub:'Mercenary hired to defend this zone'},
   {type:'caveSpider',    rank:'elite',    hp:24, spd:1.00, sc:0.94, alertR:9.0,  builder:buildCaveSpider,    banTitle:'CREATURE WARNING', banSub:'Cave spider nest nearby'},
   // champion tier
-  {type:'stoneTroll',    rank:'champion', hp:36, spd:0.62, sc:1.00, alertR:8.0,  builder:buildStoneTroll,    banTitle:'DANGER ZONE',      banSub:'Stone troll rules this territory'},
-  {type:'shadowWraith',  rank:'champion', hp:28, spd:0.80, sc:0.96, alertR:12.0, builder:buildShadowWraith,  banTitle:'DARK PRESENCE',    banSub:'Shadow wraith haunts these lands'},
-  {type:'crystalGolem',  rank:'champion', hp:36, spd:0.55, sc:1.00, alertR:8.5,  builder:buildCrystalGolem,  banTitle:'CRYSTAL GUARDIAN', banSub:'Crystal golem defends the deposits'},
-  {type:'ashmaneTitan',  rank:'champion', hp:48, spd:0.58, sc:1.02, alertR:9.5,  builder:buildAshmane,       banTitle:'ANCIENT WARLORD',  banSub:'Ashenmane Titan — elder warrior of the old world'},
-  {type:'voidWolf',      rank:'champion', hp:44, spd:0.75, sc:1.00, alertR:13.0, builder:buildVoidWolf,      banTitle:'VOID BEAST',       banSub:'Ancient wolf creature — hunts without mercy'}
+  {type:'stoneTroll',    rank:'champion', hp:18, spd:0.62, sc:1.00, alertR:8.0,  builder:buildStoneTroll,    banTitle:'DANGER ZONE',      banSub:'Stone troll rules this territory'},
+  {type:'shadowWraith',  rank:'champion', hp:14, spd:0.80, sc:0.96, alertR:12.0, builder:buildShadowWraith,  banTitle:'DARK PRESENCE',    banSub:'Shadow wraith haunts these lands'},
+  {type:'crystalGolem',  rank:'champion', hp:18, spd:0.55, sc:1.00, alertR:8.5,  builder:buildCrystalGolem,  banTitle:'CRYSTAL GUARDIAN', banSub:'Crystal golem defends the deposits'},
+  {type:'ashmaneTitan',  rank:'champion', hp:24, spd:0.58, sc:1.02, alertR:9.5,  builder:buildAshmane,       banTitle:'ANCIENT WARLORD',  banSub:'Ashenmane Titan — elder warrior of the old world'},
+  {type:'voidWolf',      rank:'champion', hp:22, spd:0.75, sc:1.00, alertR:13.0, builder:buildVoidWolf,      banTitle:'VOID BEAST',       banSub:'Ancient wolf creature — hunts without mercy'}
 ];
 var _NATIVE_CHAT={
   goblinScout:     'Goblin scout blocking my path. Quick skirmish.',
@@ -10452,40 +10452,6 @@ function _buildZoneBarrier(zone){
   zone._ringMesh=ringMesh;
 }
 
-function _spawnZoneBoss(zone){
-  if(zone.bossSpawned||zone.unlocked) return;
-  zone.bossSpawned=true;
-  var def=null;
-  for(var i=0;i<_NATIVE_TYPES.length;i++) if(_NATIVE_TYPES[i].type===zone.bossType){def=_NATIVE_TYPES[i];break;}
-  if(!def) return;
-  // Face toward DESTINY
-  var ang=dGroup?Math.atan2(dGroup.position.x,dGroup.position.z):0;
-  var bx=Math.sin(ang)*zone.radius, bz=Math.cos(ang)*zone.radius;
-  var homePos=new THREE.Vector3(bx,0,bz);
-  var bg=new THREE.Group();
-  var built=def.builder(bg);
-  bg.scale.setScalar(def.sc*zone.bossScale); bg.position.copy(homePos); scene.add(bg);
-  // Boss health scales with zone
-  var th={
-    group:bg,glowMat:built.glowMat,shell:built.shell,shell2:built.shell2,
-    weapon:built.weapon,gRing:built.gRing,pos:homePos.clone(),
-    alive:true,dissolving:false,dissolveTimer:0,wobble:0,
-    hp:zone.bossHp,maxHp:zone.bossHp,type:def.type,rank:'champion',speedMult:def.spd*0.80,
-    walkPhase:0,homePos:homePos.clone(),patrolTarget:homePos.clone(),
-    nState:'ALERT',alertRange:22,alertTimer:0,
-    atkCooldown:0,atkRate:1.0,atkDmg:28,chargeTimer:0,
-    isZoneBoss:true,zoneIdx:WORLD_ZONES.indexOf(zone)
-  };
-  threats.push(th); zone.bossRef=th;
-  // Dramatic entrance
-  for(var bi=0;bi<4;bi++){
-    (function(_d){ setTimeout(function(){ createBurst(homePos.clone().setY(1.2),zone.color,25); },_d); })(bi*200);
-  }
-  _pulseBarrier(zone,0xff0000,10);
-  destinyChat('A guardian blocks the gate. I have to fight my way through.');
-  _spawnDecisionRipple(0xff0000);
-}
-
 function _unlockZone(zone){
   if(zone.unlocked) return;
   zone.unlocked=true;
@@ -10517,16 +10483,7 @@ function _pulseBarrier(zone,flashCol,count){
   _pf();
 }
 
-function updateZoneBarriers(t){
-  for(var zi=0;zi<WORLD_ZONES.length;zi++){
-    var zone=WORLD_ZONES[zi];
-    // Trigger boss spawn when agent approaches zone boundary
-    if(!zone.bossSpawned&&!zone.unlocked&&dGroup){
-      var _dd=Math.sqrt(dGroup.position.x*dGroup.position.x+dGroup.position.z*dGroup.position.z);
-      if(_dd>=zone.radius-12) _spawnZoneBoss(zone);
-    }
-  }
-}
+function updateZoneBarriers(t){}
 
 // Zone barriers removed — world is open, bosses still spawn at zone boundaries
 
@@ -11039,10 +10996,6 @@ function updateDestiny(delta, t) {
           createBurst(_hitPos.clone().setY(1.0),dCurrentThreat.wire||0xffffff,60);
           createBurst(_hitPos.clone().setY(1.8),0xffaa00,40);
           createBurst(_hitPos.clone().setY(0.5),0xff3300,30);
-          // Zone boss unlock check
-          if(dCurrentThreat.isZoneBoss&&dCurrentThreat.zoneIdx>=0&&dCurrentThreat.zoneIdx<WORLD_ZONES.length){
-            setTimeout(function(_zi){ return function(){ _unlockZone(WORLD_ZONES[_zi]); }; }(dCurrentThreat.zoneIdx), 600);
-          }
           var _dct=dCurrentThreat;
           var _killOk=dissolveThreat(_dct);
           if(_killOk){
