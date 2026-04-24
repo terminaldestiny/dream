@@ -8164,16 +8164,11 @@ function updateThreatSpawner(delta){
       var _ispr=new THREE.Sprite(new THREE.SpriteMaterial({map:_itex,transparent:true,blending:THREE.AdditiveBlending}));
       _ispr.scale.set(5.6,1.05,1); _ispr.position.y=_idf.sc*2.8+0.8; _igrp.add(_ispr);
       _igrp.scale.setScalar(_idf.sc); _igrp.position.copy(_ihp); scene.add(_igrp);
-      var _iNearCamp=_nearestCamp(_ihp);
-      var _iPWP=_iNearCamp?_iNearCamp.waypoints:null;
-      var _iPIdx=_iPWP?Math.floor(Math.random()*_iPWP.length):0;
-      var _iPT=_iPWP?_iPWP[_iPIdx].clone():_ihp.clone();
       threats.push({group:_igrp,glowMat:_ibb.glowMat,shell:_ibb.shell,shell2:_ibb.shell2,
         weapon:_ibb.weapon,gRing:_ibb.gRing,pos:_ihp.clone(),
         alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
         hp:_idf.hp,maxHp:_idf.hp,type:_idf.type,rank:_idf.rank,speedMult:_idf.spd,
-        walkPhase:Math.random()*Math.PI*2,homePos:_ihp.clone(),patrolTarget:_iPT,
-        _camp:_iNearCamp,_patrolWaypoints:_iPWP,_patrolIdx:_iPIdx,
+        walkPhase:Math.random()*Math.PI*2,homePos:_ihp.clone(),patrolTarget:_ihp.clone(),
         nState:'PATROL',alertRange:_idf.alertR,alertTimer:0,atkCooldown:0,
         atkRate:3.6,atkDmg:4,chargeTimer:0});
     }
@@ -9611,188 +9606,30 @@ var _NATIVE_CHAT={
 // ── ENEMY CAMPS + PATROL ROUTES ──────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════
 
-var _enemyCamps=[];
-
-(function _buildEnemyCamps(){
-  // Camp definitions — type flavour, position angle, radius from origin, enemy types
-  var campDefs=[
-    {angle:0.35,  r:22, col:0xff4400, acol:0xff8833, label:'GOBLIN OUTPOST',  types:['goblinScout','goblinScout','tribeSoldier']},
-    {angle:1.90,  r:28, col:0x226622, acol:0x44ff44, label:'RANGER CAMP',     types:['forestRanger','forestRanger','mercenary']},
-    {angle:3.40,  r:24, col:0x8800cc, acol:0xcc55ff, label:'UNDEAD HOLLOW',   types:['boneSkeleton','boneSkeleton','shadowWraith']},
-    {angle:4.80,  r:30, col:0x884400, acol:0xffaa22, label:'ORC STRONGHOLD',  types:['orcGuard','tribeSoldier','orcGuard']},
-    {angle:6.00,  r:20, col:0x004488, acol:0x22aaff, label:'LIZARDMAN LAIR',  types:['lizardmanHunter','lizardmanHunter','caveSpider']},
-  ];
-
-  campDefs.forEach(function(cd){
-    var cx=Math.cos(cd.angle)*cd.r, cz=Math.sin(cd.angle)*cd.r;
-
-    // ── Campfire ────────────────────────────────────────
-    var fireG=new THREE.Group(); fireG.position.set(cx,0,cz); scene.add(fireG);
-    // Log ring (4 logs around fire pit)
-    var mLog=new THREE.MeshBasicMaterial({color:0x3a2210});
-    for(var li=0;li<4;li++){
-      var la=(li/4)*Math.PI*2;
-      var log=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.09,0.12,0.9,6),mLog);
-      log.position.set(Math.cos(la)*0.45,0.06,Math.sin(la)*0.45);
-      log.rotation.z=Math.PI/2; log.rotation.y=la; fireG.add(log);
-    }
-    // Fire pit stones
-    var mSt=new THREE.MeshBasicMaterial({color:0x555555});
-    for(var si=0;si<6;si++){
-      var sa=(si/6)*Math.PI*2;
-      var st=new THREE.Mesh(new THREE.SphereBufferGeometry(0.10,5,4),mSt);
-      st.position.set(Math.cos(sa)*0.28,0.05,Math.sin(sa)*0.28); fireG.add(st);
-    }
-    // Flame core (cone stack)
-    var mFire=new THREE.MeshBasicMaterial({color:cd.col,transparent:true,opacity:0.92,blending:THREE.AdditiveBlending});
-    var mFireInner=new THREE.MeshBasicMaterial({color:cd.acol,transparent:true,opacity:0.70,blending:THREE.AdditiveBlending});
-    var flame1=new THREE.Mesh(new THREE.ConeBufferGeometry(0.18,0.55,6),mFire);
-    flame1.position.y=0.28; fireG.add(flame1);
-    var flame2=new THREE.Mesh(new THREE.ConeBufferGeometry(0.10,0.38,5),mFireInner);
-    flame2.position.y=0.44; fireG.add(flame2);
-    // Glow disc on ground
-    var mGlow=new THREE.MeshBasicMaterial({color:cd.col,transparent:true,opacity:0.22,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
-    var gDisc=new THREE.Mesh(new THREE.CircleBufferGeometry(1.8,14),mGlow);
-    gDisc.rotation.x=-Math.PI/2; gDisc.position.y=0.02; fireG.add(gDisc);
-
-    // ── Totem / banner pole ──────────────────────────────
-    var mPole=new THREE.MeshBasicMaterial({color:0x4a2e10});
-    var mFlag=new THREE.MeshBasicMaterial({color:cd.col,transparent:true,opacity:0.85});
-    var poleG=new THREE.Group(); poleG.position.set(cx+1.4,0,cz+0.6); scene.add(poleG);
-    var pole=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.06,0.09,2.8,6),mPole);
-    pole.position.y=1.4; poleG.add(pole);
-    var banner=new THREE.Mesh(new THREE.PlaneBufferGeometry(0.7,0.4),mFlag);
-    banner.position.set(0.38,2.6,0); poleG.add(banner);
-    // Skull cap (octahedron on top)
-    var mSkull=new THREE.MeshBasicMaterial({color:0xccccaa});
-    var skull=new THREE.Mesh(new THREE.OctahedronBufferGeometry(0.14,0),mSkull);
-    skull.position.y=2.9; poleG.add(skull);
-
-    // ── Sleeping mats / bedrolls ─────────────────────────
-    var mMat=new THREE.MeshBasicMaterial({color:0x2a1a08});
-    for(var bi=0;bi<2;bi++){
-      var ba=(bi/2)*Math.PI+0.4;
-      var bed=new THREE.Mesh(new THREE.BoxBufferGeometry(0.7,0.07,0.32),mMat);
-      bed.position.set(cx+Math.cos(ba)*1.1,0.04,cz+Math.sin(ba)*1.1);
-      scene.add(bed);
-    }
-
-    // ── Patrol waypoints (pentagon around camp) ───────────
-    var ptCount=5, ptRadius=4.5+Math.random()*2.0;
-    var waypoints=[];
-    var angleOffset=Math.random()*Math.PI*2;
-    for(var wi=0;wi<ptCount;wi++){
-      var wa=angleOffset+(wi/ptCount)*Math.PI*2;
-      waypoints.push(new THREE.Vector3(cx+Math.cos(wa)*ptRadius,0,cz+Math.sin(wa)*ptRadius));
-    }
-
-    // ── Dirt trails between waypoints ────────────────────
-    var mTrail=new THREE.MeshBasicMaterial({color:0x2a1a08,transparent:true,opacity:0.55,depthWrite:false,side:THREE.DoubleSide});
-    for(var ti=0;ti<waypoints.length;ti++){
-      var wA=waypoints[ti], wB=waypoints[(ti+1)%waypoints.length];
-      var mid=wA.clone().add(wB).multiplyScalar(0.5);
-      var len=wA.distanceTo(wB);
-      var trailMesh=new THREE.Mesh(new THREE.PlaneBufferGeometry(len,0.38),mTrail.clone());
-      trailMesh.rotation.x=-Math.PI/2;
-      trailMesh.position.set(mid.x,0.015,mid.z);
-      trailMesh.rotation.z=-Math.atan2(wB.z-wA.z,wB.x-wA.x);
-      scene.add(trailMesh);
-    }
-    // Trail from camp center out to first waypoint
-    var cVec=new THREE.Vector3(cx,0,cz);
-    var spokeLen=cVec.distanceTo(waypoints[0]);
-    var spokeMid=cVec.clone().add(waypoints[0]).multiplyScalar(0.5);
-    var spokeMesh=new THREE.Mesh(new THREE.PlaneBufferGeometry(spokeLen,0.28),mTrail.clone());
-    spokeMesh.rotation.x=-Math.PI/2;
-    spokeMesh.position.set(spokeMid.x,0.014,spokeMid.z);
-    spokeMesh.rotation.z=-Math.atan2(waypoints[0].z-cz,waypoints[0].x-cx);
-    scene.add(spokeMesh);
-
-    _enemyCamps.push({
-      pos:new THREE.Vector3(cx,0,cz),
-      waypoints:waypoints,
-      fireGroup:fireG,
-      flameMats:[mFire,mFireInner],
-      glowMat:mGlow,
-      types:cd.types,
-      label:cd.label,
-      col:cd.col
-    });
-  });
-})();
-
-// Animate campfires each frame — called from main loop
-function updateCampfires(t){
-  for(var ci=0;ci<_enemyCamps.length;ci++){
-    var camp=_enemyCamps[ci];
-    // Flicker flame opacity
-    camp.flameMats[0].opacity=0.75+Math.sin(t*7.3+ci*1.7)*0.17+Math.sin(t*13.1+ci)*0.08;
-    camp.flameMats[1].opacity=0.55+Math.sin(t*9.1+ci*2.3)*0.15;
-    // Pulse ground glow
-    camp.glowMat.opacity=0.14+Math.sin(t*3.2+ci*0.9)*0.08;
-  }
-}
-
-// Return nearest camp to a given position (used by spawnThreat)
-function _nearestCamp(pos){
-  var best=null, bestD=Infinity;
-  for(var ci=0;ci<_enemyCamps.length;ci++){
-    var d=pos.distanceTo(_enemyCamps[ci].pos);
-    if(d<bestD){bestD=d;best=_enemyCamps[ci];}
-  }
-  return best;
-}
-
 function spawnThreat() {
   var aliveCount=0;
   for(var i=0;i<structures.length;i++) if(structures[i].alive) aliveCount++;
-
-  // 70% chance: spawn from a camp. 30%: spawn near a resource node.
-  var homePos, assignedCamp=null, patrolWaypoints=null, patrolIdx=0;
-  if(_enemyCamps.length>0&&Math.random()<0.70){
-    // Pick a camp, spawn at or near it
-    assignedCamp=_enemyCamps[Math.floor(Math.random()*_enemyCamps.length)];
-    var _ca=Math.random()*Math.PI*2;
-    homePos=new THREE.Vector3(
-      assignedCamp.pos.x+Math.cos(_ca)*1.5,0,
-      assignedCamp.pos.z+Math.sin(_ca)*1.5
-    );
-    patrolWaypoints=assignedCamp.waypoints;
-    patrolIdx=Math.floor(Math.random()*patrolWaypoints.length);
+  var homePos;
+  var liveNodes=[];
+  for(var _ni=0;_ni<resourceNodes.length;_ni++){
+    if(!resourceNodes[_ni].depleted) liveNodes.push(resourceNodes[_ni]);
+  }
+  if(liveNodes.length>0){
+    var _n=liveNodes[Math.floor(Math.random()*liveNodes.length)];
+    var _ta=Math.random()*Math.PI*2, _tr=2.5+Math.random()*4.0;
+    homePos=new THREE.Vector3(_n.pos.x+Math.cos(_ta)*_tr,0,_n.pos.z+Math.sin(_ta)*_tr);
   } else {
-    var liveNodes=[];
-    for(var _ni=0;_ni<resourceNodes.length;_ni++){
-      if(!resourceNodes[_ni].depleted) liveNodes.push(resourceNodes[_ni]);
-    }
-    if(liveNodes.length>0){
-      var _n=liveNodes[Math.floor(Math.random()*liveNodes.length)];
-      var _ta=Math.random()*Math.PI*2, _tr=2.5+Math.random()*4.0;
-      homePos=new THREE.Vector3(_n.pos.x+Math.cos(_ta)*_tr,0,_n.pos.z+Math.sin(_ta)*_tr);
-    } else {
-      var _a=Math.random()*Math.PI*2, _r=18+Math.random()*16;
-      homePos=new THREE.Vector3(Math.cos(_a)*_r,0,Math.sin(_a)*_r);
-    }
+    var _a=Math.random()*Math.PI*2, _r=18+Math.random()*16;
+    homePos=new THREE.Vector3(Math.cos(_a)*_r,0,Math.sin(_a)*_r);
   }
   if(homePos.length()<12){ homePos.normalize().multiplyScalar(12+Math.random()*8); }
-
-  // Weight pool toward camp-appropriate types when spawning from a camp
   var pool=[];
-  if(assignedCamp){
-    for(var _ci=0;_ci<assignedCamp.types.length;_ci++){
-      var _ct=assignedCamp.types[_ci];
-      for(var _pi2=0;_pi2<_NATIVE_TYPES.length;_pi2++){
-        if(_NATIVE_TYPES[_pi2].type===_ct){ pool.push(_NATIVE_TYPES[_pi2]); pool.push(_NATIVE_TYPES[_pi2]); }
-      }
-    }
+  for(var _pi=0;_pi<_NATIVE_TYPES.length;_pi++){
+    var _nt=_NATIVE_TYPES[_pi];
+    var _w=_nt.rank==='grunt'?8:_nt.rank==='warrior'?4:_nt.rank==='elite'?2:1;
+    for(var _wi=0;_wi<_w;_wi++) pool.push(_nt);
   }
-  if(pool.length===0){
-    for(var _pi=0;_pi<_NATIVE_TYPES.length;_pi++){
-      var _nt=_NATIVE_TYPES[_pi];
-      var _w=_nt.rank==='grunt'?8:_nt.rank==='warrior'?4:_nt.rank==='elite'?2:1;
-      for(var _wi=0;_wi<_w;_wi++) pool.push(_nt);
-    }
-  }
-
+  if(pool.length===0) pool=[_NATIVE_TYPES[0]];
   var def=pool[Math.floor(Math.random()*pool.length)];
   var g=new THREE.Group();
   var built=def.builder(g);
@@ -9800,19 +9637,16 @@ function spawnThreat() {
   var sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,blending:THREE.AdditiveBlending}));
   sprite.scale.set(5.6,1.05,1); sprite.position.y=def.sc*2.8+0.8; g.add(sprite);
   g.scale.setScalar(def.sc); g.position.copy(homePos); scene.add(g);
-  document.getElementById('wb-title').textContent=assignedCamp?assignedCamp.label:def.banTitle;
+  document.getElementById('wb-title').textContent=def.banTitle;
   document.getElementById('wb-sub').textContent=def.banSub;
   document.getElementById('wave-banner').classList.add('show');
   setTimeout(function(){document.getElementById('wave-banner').classList.remove('show');},2800);
-
-  var firstPT=patrolWaypoints?patrolWaypoints[patrolIdx].clone():homePos.clone();
   threats.push({group:g,glowMat:built.glowMat,shell:built.shell,shell2:built.shell2,
     weapon:built.weapon,gRing:built.gRing,pos:homePos.clone(),
     alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
     hp:def.hp,maxHp:def.hp,type:def.type,rank:def.rank,speedMult:def.spd,
     walkPhase:Math.random()*Math.PI*2,
-    homePos:homePos.clone(),patrolTarget:firstPT,
-    _camp:assignedCamp,_patrolWaypoints:patrolWaypoints,_patrolIdx:patrolIdx,
+    homePos:homePos.clone(),patrolTarget:homePos.clone(),
     nState:'PATROL',alertRange:def.alertR,alertTimer:0,
     atkCooldown:0,
     atkRate:def.rank==='champion'?1.6:def.rank==='elite'?2.2:def.rank==='warrior'?2.8:3.6,
@@ -10115,15 +9949,8 @@ function updateThreats(delta, t) {
     if(th.nState==='PATROL'){
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.5;
       if(th.group.position.distanceTo(th.patrolTarget)<0.9){
-        if(th._patrolWaypoints&&th._patrolWaypoints.length>0){
-          // Advance to next waypoint on the camp patrol route
-          th._patrolIdx=(th._patrolIdx+1)%th._patrolWaypoints.length;
-          th.patrolTarget=th._patrolWaypoints[th._patrolIdx].clone();
-        } else {
-          // No camp — random wander near home
-          var _pa=Math.random()*Math.PI*2, _pr=1.5+Math.random()*3.5;
-          th.patrolTarget=new THREE.Vector3(th.homePos.x+Math.cos(_pa)*_pr,0,th.homePos.z+Math.sin(_pa)*_pr);
-        }
+        var _pa=Math.random()*Math.PI*2, _pr=1.5+Math.random()*3.5;
+        th.patrolTarget=new THREE.Vector3(th.homePos.x+Math.cos(_pa)*_pr,0,th.homePos.z+Math.sin(_pa)*_pr);
       }
       // MGS-style two-tier detection
       if(dPos&&dDist<th.alertRange*0.72){
@@ -12092,7 +11919,6 @@ function animate() {
   updateHeavyRain(delta,t);
 
   // Systems
-  updateCampfires(t);
   updateThreatSpawner(delta);
   updateThreats(delta,t);
   updateStructures(delta,t);
