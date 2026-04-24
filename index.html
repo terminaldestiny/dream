@@ -120,8 +120,9 @@
     /* ── IMMERSIVE HUD OVERLAYS ─────────────────────────────────── */
     .mini-bar-bg { height: 4px; background: rgba(0,255,65,0.10); width: 100%; margin-bottom: 2px; }
     .mini-bar-fill { height: 100%; transition: width 0.4s; }
-    .bar-green { background: #00ff41; box-shadow: 0 0 4px #00ff4155; }
-    .bar-gold  { background: #ffb000; box-shadow: 0 0 4px #ffb00055; }
+    .bar-green  { background: #00ff41; box-shadow: 0 0 4px #00ff4155; }
+    .bar-gold   { background: #ffb000; box-shadow: 0 0 4px #ffb00055; }
+    .bar-purple { background: #cc44ff; box-shadow: 0 0 4px #cc44ff55; }
     .bar-red   { background: #ff2200; box-shadow: 0 0 4px #ff220055; }
 
     /* Agent status — top left */
@@ -387,6 +388,7 @@
 <div id="scanlines"></div>
 <div id="threat-flash"></div>
 <div id="destiny-nameplate" style="position:fixed;pointer-events:none;z-index:40;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;color:#00bef0;text-shadow:0 0 8px #00bef0aa;transform:translateX(-50%);display:none;">DESTINY-1</div>
+<div id="eliza-nameplate" style="position:fixed;pointer-events:none;z-index:40;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;color:#cc44ff;text-shadow:0 0 8px #cc44ffaa;transform:translateX(-50%);display:none;">ELIZA</div>
 <div id="build-progress-container" style="position:fixed;top:0;left:0;pointer-events:none;z-index:38;"></div>
 <div id="destiny-tracker" style="display:none;position:fixed;z-index:30;pointer-events:none;font-family:monospace;font-size:11px;color:#00ff88;text-shadow:0 0 6px #00ff88;background:rgba(0,0,0,0.55);border:1px solid #00ff8855;padding:3px 7px;border-radius:3px;">▶ DESTINY</div>
 <div id="header">
@@ -475,6 +477,13 @@
     <div class="hud-tc-label">TOWN CENTER</div>
     <div class="mini-bar-bg"><div class="mini-bar-fill bar-gold" id="tc-hp-bar" style="width:100%"></div></div>
     <div class="hud-tc-val"><span id="tc-hp-val">100</span> / 100</div>
+  </div>
+  <div id="eliza-hud-block" style="display:none;margin-top:10px;padding-top:8px;border-top:1px solid #cc44ff33;">
+    <div style="color:#cc44ffcc;font-size:11px;letter-spacing:3px;margin-bottom:5px;">◈ ELIZA</div>
+    <div class="hud-bar-label">HEALTH</div>
+    <div class="mini-bar-bg"><div class="mini-bar-fill bar-purple" id="e-hp-bar" style="width:100%"></div></div>
+    <div class="hud-val-row"><span id="e-hp-val">100</span> / 100</div>
+    <div id="eliza-status-label" style="font-size:9px;color:#cc44ff77;letter-spacing:2px;margin-top:2px;">PATROL</div>
   </div>
 </div>
 
@@ -1249,14 +1258,16 @@ var _hitFlashEl=document.getElementById('threat-flash')||document.createElement(
 if(!document.getElementById('hit-flash')){
   var _hfEl=document.createElement('div');
   _hfEl.id='hit-flash';
-  _hfEl.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999;background:rgba(255,0,0,0);transition:background 0.08s;';
+  // No transition on init — avoids the rgba(255,0,0,0) channel bleed artifact on first paint
+  _hfEl.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999;background:rgba(255,0,0,0);display:none;';
   document.body.appendChild(_hfEl);
 }
 var _hitFlash=document.getElementById('hit-flash');
 var _hitFlashTimer=0;
 
 function triggerHitFlash(col){
-  if(!_hitFlash) return;
+  if(!_hitFlash||_introActive) return;
+  _hitFlash.style.display='block';
   _hitFlash.style.transition='none';
   _hitFlash.style.background=col||'rgba(255,0,0,0.28)';
   _hitFlashTimer=0.18;
@@ -1380,6 +1391,7 @@ function updateAlive(delta,t){
     if(_hitFlashTimer<=0 && _hitFlash){
       _hitFlash.style.transition='background 0.3s';
       _hitFlash.style.background='rgba(255,0,0,0)';
+      setTimeout(function(){ if(_hitFlash) _hitFlash.style.display='none'; },320);
     }
   }
 }
@@ -7247,11 +7259,11 @@ function updateEffects(delta) {
 // ── Floating damage/hit label (DOM overlay) ───────────────────────────
 var _dmgLabels=[];
 var _destinyTrackerEl=document.getElementById('destiny-tracker');
-function _spawnDmgNumber(worldPos, label) {
+function _spawnDmgNumber(worldPos, label, col) {
   if(_dmgLabels.length>=12) return; // cap DOM overlay count
   var el=document.createElement('div');
   el.style.cssText='position:fixed;font-family:monospace;font-size:13px;font-weight:bold;pointer-events:none;z-index:50;text-shadow:0 0 8px currentColor;transition:none;';
-  el.style.color=(label==='LETHAL')?'#ff0000':(label==='HIT'?'#ffcc00':'#ff6600');
+  el.style.color=col||(label==='LETHAL'?'#ff0000':label==='HIT'?'#ffcc00':'#ff6600');
   el.textContent='[ '+label+' ]';
   document.body.appendChild(el);
   _dmgLabels.push({el:el,pos:worldPos.clone(),life:0,maxLife:0.9});
@@ -7271,25 +7283,32 @@ function _updateDmgLabels(delta) {
 }
 // ── AI Thought Bubbles — float above DESTINY's head in world space ────
 var _thoughtBubbles=[];
-function _spawnThoughtBubble(text){
-  if(!dGroup) return;
-  // Limit to 1 bubble at a time — new one replaces if queue is full
-  if(_thoughtBubbles.length>0){ document.body.removeChild(_thoughtBubbles[0].el); _thoughtBubbles.splice(0,1); }
+function _spawnThoughtBubble(text, anchorGroup){
+  var _ag=anchorGroup||dGroup;
+  if(!_ag) return;
+  // Limit to 1 bubble per anchor — new one replaces
+  for(var _ti=_thoughtBubbles.length-1;_ti>=0;_ti--){
+    if(_thoughtBubbles[_ti].group===_ag){ document.body.removeChild(_thoughtBubbles[_ti].el); _thoughtBubbles.splice(_ti,1); }
+  }
+  var isEliza=(_ag===elizaGroup);
+  var col=isEliza?'#cc88ff':'#00ffdd';
+  var colGlow=isEliza?'#cc88ff99':'#00ffdd99';
   var el=document.createElement('div');
   var short=text.replace(/^\[D1\]\s*/,'');
   el.style.cssText='position:fixed;font-family:monospace;font-size:13px;pointer-events:none;z-index:45;'+
-    'color:#00ffdd;text-shadow:0 0 12px #00ffdd99,0 0 4px #00ffddcc;letter-spacing:0.8px;line-height:1.5;'+
-    'white-space:normal;max-width:'+(_MOBILE?'180px':'280px')+';padding:'+(_MOBILE?'4px 8px 4px 7px':'6px 11px 6px 9px')+';border-left:2px solid #00ffdd55;background:rgba(0,10,8,0.84);font-size:'+(_MOBILE?'11px':'13px')+';';
+    'color:'+col+';text-shadow:0 0 12px '+colGlow+',0 0 4px '+col+';letter-spacing:0.8px;line-height:1.5;'+
+    'white-space:normal;max-width:'+(_MOBILE?'180px':'280px')+';padding:'+(_MOBILE?'4px 8px 4px 7px':'6px 11px 6px 9px')+';border-left:2px solid '+col+'55;background:rgba(0,10,8,0.84);font-size:'+(_MOBILE?'11px':'13px')+';';
   el.textContent='» '+short;
   document.body.appendChild(el);
-  _thoughtBubbles.push({el:el,life:0,maxLife:7.2,rise:0});
+  _thoughtBubbles.push({el:el,life:0,maxLife:7.2,rise:0,group:_ag});
 }
 function _updateThoughtBubbles(delta){
   for(var i=_thoughtBubbles.length-1;i>=0;i--){
     var b=_thoughtBubbles[i]; b.life+=delta; b.rise+=delta*0.30;
     var p=b.life/b.maxLife;
-    if(!dGroup||!camera){ document.body.removeChild(b.el); _thoughtBubbles.splice(i,1); continue; }
-    var _wp=dGroup.position.clone().setY(dGroup.position.y+3.0+b.rise);
+    var _bg=b.group||dGroup;
+    if(!_bg||!camera){ document.body.removeChild(b.el); _thoughtBubbles.splice(i,1); continue; }
+    var _wp=_bg.position.clone().setY(_bg.position.y+3.0+b.rise);
     var _sv=_wp.project(camera);
     if(_sv.z>1){ b.el.style.opacity='0'; continue; } // behind camera
     var _sx=(_sv.x*0.5+0.5)*window.innerWidth;
@@ -10128,7 +10147,15 @@ var dGroup=null, dParts=null;
 var _tv1=new THREE.Vector3(), _tv2=new THREE.Vector3(); // reusable per-frame scratch vectors
 var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=0.5;
 var _introActive=false; // true during new-game intro — freezes game logic
-var _agentName='DESTINY-1'; // player-chosen agent name
+var _agentName='DESTINY-1';
+
+// ── ELIZA — second agent (hunter/scout) ──────────────────────────────
+var _hasDestiny=true, _hasEliza=false;
+var elizaGroup=null, elizaParts=null;
+var elizaHP=100, elizaMaxHP=100, elizaRegen=1.8;
+var eState='PATROL', eTarget=new THREE.Vector3(), eTimer=2.0, eWalk=0;
+var _eCurrentThreat=null, _eAtkCd=0, _ePatrolIdx=0;
+var _eHpBar=null, _eHpVal=null, _eStatusEl=null, _elizaNameplateEl=null;
 var dSeqIdx=0, dBuildType=BUILD_SEQUENCE[0], dBuildPos=new THREE.Vector3(), dBuildRot=0;
 var dCurrentThreat=null;
 var dArtPos=new THREE.Vector3(), dArtPick='';     // art walk destination + type
@@ -10360,6 +10387,235 @@ function buildDestiny() {
 }
 
 dParts=buildDestiny(); dGroup=dParts.group;
+
+// ── buildEliza — purple/silver hunter character ────────────────────────
+function buildEliza(){
+  var g=new THREE.Group();
+  var mSkin   = new THREE.MeshBasicMaterial({color:0xC8A882}); // warm tan skin
+  var mHair   = new THREE.MeshBasicMaterial({color:0xE8E8F0}); // platinum silver
+  var mTop    = new THREE.MeshBasicMaterial({color:0x1A0A2E}); // deep dark purple top
+  var mInner  = new THREE.MeshBasicMaterial({color:0x7B2D8B}); // purple inner
+  var mPants  = new THREE.MeshBasicMaterial({color:0x1C1C24}); // near-black cargo pants
+  var mEye    = new THREE.MeshBasicMaterial({color:0xcc44ff}); // purple glowing eyes
+  var mAu     = new THREE.MeshBasicMaterial({color:0xaa33ff,transparent:true,opacity:0.12,blending:THREE.AdditiveBlending,depthWrite:false});
+  var mRn     = new THREE.MeshBasicMaterial({color:0xff44cc,transparent:true,opacity:0.40,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false});
+
+  // Legs — cargo pants
+  var lLP=new THREE.Group(); lLP.position.set(-0.105,0.80,0);
+  var lLeg=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.065,0.050,0.80,7),mPants); lLeg.position.y=-0.40; lLP.add(lLeg);
+  g.add(lLP);
+  var lRP=new THREE.Group(); lRP.position.set(0.105,0.80,0);
+  var rLeg=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.065,0.050,0.80,7),mPants); rLeg.position.y=-0.40; lRP.add(rLeg);
+  g.add(lRP);
+
+  // Torso — dark tactical top
+  var torso=new THREE.Mesh(new THREE.BoxBufferGeometry(0.30,0.58,0.15),mTop); torso.position.y=1.12; g.add(torso);
+  var inner=new THREE.Mesh(new THREE.BoxBufferGeometry(0.18,0.56,0.08),mInner); inner.position.set(0,1.12,0.08); g.add(inner);
+  // Shoulders
+  var shdL=new THREE.Mesh(new THREE.BoxBufferGeometry(0.10,0.09,0.24),mTop); shdL.position.set(-0.23,1.40,0); g.add(shdL);
+  var shdR=new THREE.Mesh(new THREE.BoxBufferGeometry(0.10,0.09,0.24),mTop); shdR.position.set( 0.23,1.40,0); g.add(shdR);
+
+  // Arms — sleek tactical sleeves
+  var aLP=new THREE.Group(); aLP.position.set(-0.27,1.38,0);
+  var lArm=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.050,0.038,0.56,6),mTop); lArm.position.y=-0.28; aLP.add(lArm);
+  var lHand=new THREE.Mesh(new THREE.SphereBufferGeometry(0.042,5,5),mSkin); lHand.position.y=-0.58; aLP.add(lHand);
+  g.add(aLP);
+  var aRP=new THREE.Group(); aRP.position.set(0.27,1.38,0);
+  var rArm=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.050,0.038,0.56,6),mTop); rArm.position.y=-0.28; aRP.add(rArm);
+  var rHand=new THREE.Mesh(new THREE.SphereBufferGeometry(0.042,5,5),mSkin); rHand.position.y=-0.58; aRP.add(rHand);
+  g.add(aRP);
+
+  // Neck + head
+  var neck=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.048,0.048,0.12,6),mSkin); neck.position.y=1.52; g.add(neck);
+  var head=new THREE.Mesh(new THREE.SphereBufferGeometry(0.185,8,8),mSkin); head.position.set(0,1.73,0); g.add(head);
+  var eL=new THREE.Mesh(new THREE.SphereBufferGeometry(0.026,4,4),mEye); eL.position.set(-0.068,1.75,0.175); g.add(eL);
+  var eR=new THREE.Mesh(new THREE.SphereBufferGeometry(0.026,4,4),mEye); eR.position.set( 0.068,1.75,0.175); g.add(eR);
+
+  // Silver short hair — cropped close, side-swept
+  var hairCap=new THREE.Mesh(new THREE.SphereBufferGeometry(0.200,8,8),mHair); hairCap.position.set(0,1.76,-0.01); hairCap.scale.set(1.01,0.80,1.01); g.add(hairCap);
+  var sideSwept=new THREE.Mesh(new THREE.BoxBufferGeometry(0.22,0.06,0.12),mHair); sideSwept.position.set(-0.06,1.88,-0.04); sideSwept.rotation.z=0.12; g.add(sideSwept);
+  var hairFront=new THREE.Mesh(new THREE.BoxBufferGeometry(0.14,0.08,0.04),mHair); hairFront.position.set(-0.02,1.89,0.16); g.add(hairFront);
+
+  // Hunting knife on left hip
+  var mBlade=new THREE.MeshBasicMaterial({color:0xccccee,transparent:true,opacity:0.90});
+  var mGrip =new THREE.MeshBasicMaterial({color:0x2a0a2e});
+  var knife=new THREE.Group();
+  knife.add(mk(new THREE.BoxBufferGeometry(0.025,0.36,0.025),mBlade,0,0.22,0));
+  knife.add(mk(new THREE.CylinderBufferGeometry(0.018,0.018,0.14,5),mGrip,0,-0.02,0));
+  knife.position.set(0.06,-0.44,0.04); knife.rotation.z=0.35;
+  aLP.add(knife);
+
+  // Aura + ground ring (purple/magenta)
+  var aura=new THREE.Mesh(new THREE.SphereBufferGeometry(0.65,8,8),mAu); aura.position.y=0.92; g.add(aura);
+  var gRing=new THREE.Mesh(new THREE.RingBufferGeometry(0.42,0.58,36),mRn); gRing.rotation.x=-Math.PI/2; gRing.position.y=0.02; g.add(gRing);
+
+  g.position.set(-8,0,-5); scene.add(g);
+  return {group:g, legLPivot:lLP, legRPivot:lRP, armLPivot:aLP, armRPivot:aRP, head:head, groundRing:gRing};
+}
+
+// ── Eliza patrol waypoints (perimeter ring) ────────────────────────────
+var _ELIZA_PATROL=[
+  new THREE.Vector3( 18, 0,  0),
+  new THREE.Vector3( 13, 0, 13),
+  new THREE.Vector3(  0, 0, 18),
+  new THREE.Vector3(-13, 0, 13),
+  new THREE.Vector3(-18, 0,  0),
+  new THREE.Vector3(-13, 0,-13),
+  new THREE.Vector3(  0, 0,-18),
+  new THREE.Vector3( 13, 0,-13),
+];
+var _ELIZA_THOUGHTS=[
+  'Perimeter clear — for now.',
+  'Scanning sector...',
+  'Something moved out there.',
+  'Watching the treeline.',
+  'All quiet. Stay sharp.',
+  'They know we\'re here.',
+  'Marking position.',
+  'No threats detected. Yet.',
+];
+
+function updateEliza(delta, t){
+  if(_introActive||!elizaGroup) return;
+  var eg=elizaGroup, ep=elizaParts;
+
+  // HP regen
+  if(eState!=='STUNNED') elizaHP=Math.min(elizaMaxHP, elizaHP+elizaRegen*delta);
+  var ePct=Math.round((elizaHP/elizaMaxHP)*100);
+  if(_eHpBar) _eHpBar.style.width=ePct+'%';
+  if(_eHpVal) _eHpVal.textContent=Math.round(elizaHP);
+
+  // Walk bob
+  if(eState==='PATROL'||eState==='ENGAGE'||eState==='RETURN'){
+    eWalk+=delta*2.8;
+    if(ep){
+      ep.legLPivot.rotation.x= Math.sin(eWalk)*0.40;
+      ep.legRPivot.rotation.x=-Math.sin(eWalk)*0.40;
+      ep.armLPivot.rotation.x=-Math.sin(eWalk)*0.22;
+      ep.armRPivot.rotation.x= Math.sin(eWalk)*0.22;
+      ep.head.rotation.y=Math.sin(t*0.9)*0.08;
+    }
+  } else {
+    eWalk=0;
+    if(ep){ep.legLPivot.rotation.x=0;ep.legRPivot.rotation.x=0;}
+  }
+
+  // Attack cooldown
+  if(_eAtkCd>0) _eAtkCd-=delta;
+
+  var eSpd=3.8;
+  var ePos=eg.position;
+
+  if(eState==='PATROL'){
+    // Scan for nearby threats
+    var closest=null, closestDist=14;
+    for(var ti=0;ti<threats.length;ti++){
+      var th=threats[ti];
+      if(!th.alive||!th.group) continue;
+      var dx=th.group.position.x-ePos.x, dz=th.group.position.z-ePos.z;
+      var dist=Math.sqrt(dx*dx+dz*dz);
+      if(dist<closestDist){closestDist=dist;closest=th;}
+    }
+    if(closest){
+      _eCurrentThreat=closest;
+      eState='ENGAGE';
+      if(_eStatusEl) _eStatusEl.textContent='ENGAGE';
+      eTimer=0;
+      return;
+    }
+    // Walk to next patrol waypoint
+    var wp=_ELIZA_PATROL[_ePatrolIdx];
+    var wdx=wp.x-ePos.x, wdz=wp.z-ePos.z;
+    var wdist=Math.sqrt(wdx*wdx+wdz*wdz);
+    if(wdist<1.2){
+      // Reached waypoint — pause briefly then move on
+      eState='PAUSE';
+      eTimer=1.2+Math.random()*1.0;
+      _ePatrolIdx=(_ePatrolIdx+1)%_ELIZA_PATROL.length;
+      if(_eStatusEl) _eStatusEl.textContent='SCANNING';
+      // Thought bubble occasionally
+      if(Math.random()<0.4) _spawnThoughtBubble(_ELIZA_THOUGHTS[_ePatrolIdx%_ELIZA_THOUGHTS.length], eg);
+      return;
+    }
+    var wnorm=1/wdist;
+    eg.position.x+=wdx*wnorm*eSpd*delta;
+    eg.position.z+=wdz*wnorm*eSpd*delta;
+    eg.rotation.y=Math.atan2(wdx,wdz);
+
+  } else if(eState==='PAUSE'){
+    eTimer-=delta;
+    if(eTimer<=0){ eState='PATROL'; if(_eStatusEl) _eStatusEl.textContent='PATROL'; }
+
+  } else if(eState==='ENGAGE'){
+    // Check if threat still alive
+    if(!_eCurrentThreat||!_eCurrentThreat.alive||!_eCurrentThreat.group){
+      _eCurrentThreat=null; eState='RETURN'; eTimer=2.0;
+      if(_eStatusEl) _eStatusEl.textContent='RETURN';
+      return;
+    }
+    var tx=_eCurrentThreat.group.position.x-ePos.x;
+    var tz=_eCurrentThreat.group.position.z-ePos.z;
+    var tdist=Math.sqrt(tx*tx+tz*tz);
+    eg.rotation.y=Math.atan2(tx,tz);
+    if(tdist>2.5){
+      eg.position.x+=tx/tdist*eSpd*delta;
+      eg.position.z+=tz/tdist*eSpd*delta;
+    } else {
+      // In attack range — deal damage
+      if(_eAtkCd<=0){
+        _eCurrentThreat.hp-=7;
+        _eAtkCd=1.4;
+        _spawnDmgNumber(_eCurrentThreat.group.position.clone().setY(1.5),'-7 [ELIZA]','#cc44ff');
+        if(_eCurrentThreat.hp<=0) _eCurrentThreat.alive=false;
+        // Eliza takes retaliation damage
+        elizaHP=Math.max(0,elizaHP-(_eCurrentThreat.atkDmg||4)*0.6);
+        if(elizaHP<=0){ eState='STUNNED'; eTimer=5; if(_eStatusEl) _eStatusEl.textContent='STUNNED'; }
+      }
+      // Check if threat died
+      if(!_eCurrentThreat.alive){
+        _eCurrentThreat=null; eState='RETURN'; eTimer=1.5;
+        if(_eStatusEl) _eStatusEl.textContent='RETURN';
+        destinyChat('[ELIZA] Target down.');
+      }
+    }
+
+  } else if(eState==='RETURN'){
+    // Walk back toward base center
+    var rdx=-ePos.x, rdz=-ePos.z;
+    var rdist=Math.sqrt(rdx*rdx+rdz*rdz);
+    eg.rotation.y=Math.atan2(rdx,rdz);
+    if(rdist<8||eTimer<=0){
+      eState='PATROL';
+      if(_eStatusEl) _eStatusEl.textContent='PATROL';
+    } else {
+      eTimer-=delta;
+      eg.position.x+=rdx/rdist*eSpd*delta;
+      eg.position.z+=rdz/rdist*eSpd*delta;
+    }
+
+  } else if(eState==='STUNNED'){
+    eTimer-=delta;
+    if(eTimer<=0){
+      elizaHP=elizaMaxHP*0.4; // revive at 40% HP
+      eState='PATROL';
+      if(_eStatusEl) _eStatusEl.textContent='PATROL';
+      destinyChat('[ELIZA] Back online.');
+    }
+  }
+}
+
+// ── Eliza nameplate — floats above her head ────────────────────────────
+function _updateElizaNameplate(){
+  if(!elizaGroup||!_elizaNameplateEl) return;
+  var above=new THREE.Vector3(elizaGroup.position.x, elizaGroup.position.y+2.4, elizaGroup.position.z);
+  var sv=above.clone().project(camera);
+  if(sv.z>1){_elizaNameplateEl.style.display='none';return;}
+  var sx=(sv.x*0.5+0.5)*window.innerWidth;
+  var sy=(1-(sv.y*0.5+0.5))*window.innerHeight;
+  _elizaNameplateEl.style.left=sx+'px';
+  _elizaNameplateEl.style.top=sy+'px';
+  _elizaNameplateEl.style.display='block';
+}
 dBuildPos.set(0,0,0); dTarget.set(0,0,0);
 
 // ── Intro sequence (new game only, runs after boot screen) ───────────
@@ -10370,113 +10626,166 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
   _introActive=true;
   dTimer=999;
   if(_MOBILE){
+    _hasDestiny=true; _hasEliza=false;
     setTimeout(function(){ _introActive=false; dTimer=0.5; },800);
     return;
   }
 
   var _smol=window.innerWidth<900;
+  var _selD=true, _selE=false; // selection state
 
-  // Black overlay — not in DOM until boot is fully gone, then snaps to black instantly.
-  // Boot background is #000, overlay background is #000 — seamless hand-off, no flash.
+  // Black overlay — appended after boot is fully gone for seamless handoff
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:998;pointer-events:all;font-family:"Courier New",monospace;';
-  setTimeout(function(){ document.body.appendChild(ov); },5050);
+  setTimeout(function(){
+    document.body.appendChild(ov);
+    void ov.offsetWidth;
+    setTimeout(function(){ panel.style.opacity='1'; },100);
+  },5050);
 
-  // ── Agent creation panel (shown after boot fades) ─────────────────
+  // ── Agent selection panel ─────────────────────────────────────────
   var panel=document.createElement('div');
-  panel.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:18px;opacity:0;transition:opacity 0.8s;';
+  panel.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:20px;opacity:0;transition:opacity 0.8s;width:100%;max-width:680px;padding:0 16px;box-sizing:border-box;';
   ov.appendChild(panel);
 
-  // Header
   var hdr=document.createElement('div');
-  hdr.style.cssText='color:#00ff41;font-size:'+(_smol?'10px':'12px')+';letter-spacing:5px;text-transform:uppercase;text-align:center;margin-bottom:4px;';
+  hdr.style.cssText='color:#00ff41;font-size:'+(_smol?'9px':'11px')+';letter-spacing:5px;text-align:center;';
   hdr.textContent='// AGENT INITIALIZATION //';
   panel.appendChild(hdr);
 
   var title=document.createElement('div');
-  title.style.cssText='color:#44ffaa;font-size:'+(_smol?'20px':'28px')+';letter-spacing:3px;text-transform:uppercase;text-align:center;margin-bottom:8px;';
-  title.textContent='CREATE YOUR AGENT';
+  title.style.cssText='color:#44ffaa;font-size:'+(_smol?'18px':'26px')+';letter-spacing:3px;text-align:center;margin-bottom:4px;';
+  title.textContent='SELECT YOUR AGENTS';
   panel.appendChild(title);
 
-  // Name input
-  var inputWrap=document.createElement('div');
-  inputWrap.style.cssText='display:flex;align-items:center;border:1px solid #00ff4166;padding:8px 14px;gap:8px;width:'+(_smol?'240px':'320px')+';box-sizing:border-box;';
-  var inputPfx=document.createElement('span');
-  inputPfx.style.cssText='color:#00ff4188;font-size:13px;letter-spacing:2px;white-space:nowrap;';
-  inputPfx.textContent='AGENT >';
-  var inp=document.createElement('input');
-  inp.type='text';
-  inp.maxLength=16;
-  inp.placeholder='DESTINY-1';
-  inp.style.cssText='background:transparent;border:none;outline:none;color:#00ff41;font-family:"Courier New",monospace;font-size:'+(_smol?'14px':'16px')+';letter-spacing:3px;text-transform:uppercase;width:100%;caret-color:#00ff41;';
-  inputWrap.appendChild(inputPfx); inputWrap.appendChild(inp);
-  panel.appendChild(inputWrap);
+  var sub=document.createElement('div');
+  sub.style.cssText='color:#00ff4166;font-size:'+(_smol?'9px':'10px')+';letter-spacing:3px;text-align:center;margin-top:-12px;margin-bottom:4px;';
+  sub.textContent='CHOOSE ONE OR BOTH';
+  panel.appendChild(sub);
 
-  // Buttons
-  function _mkBtn(label,col,disabled){
-    var b=document.createElement('button');
-    b.textContent=label;
-    b.disabled=disabled||false;
-    b.style.cssText='background:transparent;border:1px solid '+(disabled?'#ffffff22':col+'66')+';color:'+(disabled?'#ffffff33':col)+';font-family:"Courier New",monospace;font-size:'+(_smol?'9px':'11px')+';letter-spacing:3px;padding:11px 28px;cursor:'+(disabled?'default':'pointer')+';text-transform:uppercase;width:'+(_smol?'240px':'320px')+';transition:background 0.2s;';
-    if(!disabled){
-      b.onmouseenter=function(){b.style.background=col+'18';};
-      b.onmouseleave=function(){b.style.background='transparent';};
+  // ── Card row ─────────────────────────────────────────────────────
+  var cardRow=document.createElement('div');
+  cardRow.style.cssText='display:flex;gap:'+(_smol?'12px':'20px')+';justify-content:center;flex-wrap:wrap;width:100%;';
+  panel.appendChild(cardRow);
+
+  function _mkCard(name, role, desc, col, selInit){
+    var card=document.createElement('div');
+    var w=_smol?'240px':'280px';
+    card.style.cssText='width:'+w+';border:1px solid '+(selInit?col+'cc':col+'44')+';padding:'+(_smol?'14px 16px':'18px 20px')+';cursor:pointer;transition:all 0.2s;position:relative;box-sizing:border-box;background:'+(selInit?col+'0c':'transparent')+';';
+    var selected=selInit;
+
+    var cName=document.createElement('div');
+    cName.style.cssText='color:'+col+';font-size:'+(_smol?'14px':'17px')+';letter-spacing:4px;margin-bottom:4px;';
+    cName.textContent='◈ '+name;
+    card.appendChild(cName);
+
+    var cRole=document.createElement('div');
+    cRole.style.cssText='color:'+col+'99;font-size:'+(_smol?'8px':'9px')+';letter-spacing:3px;margin-bottom:12px;';
+    cRole.textContent=role;
+    card.appendChild(cRole);
+
+    desc.forEach(function(d){
+      var row=document.createElement('div');
+      row.style.cssText='color:#aaaaaa88;font-size:'+(_smol?'8px':'9px')+';letter-spacing:2px;margin-bottom:3px;';
+      row.textContent='· '+d;
+      card.appendChild(row);
+    });
+
+    var statusBar=document.createElement('div');
+    statusBar.style.cssText='margin-top:14px;border:1px solid '+(selInit?col+'88':col+'33')+';padding:5px 10px;text-align:center;font-size:'+(_smol?'8px':'9px')+';letter-spacing:3px;color:'+(selInit?col:'#ffffff44')+';transition:all 0.2s;';
+    statusBar.textContent=selInit?'SELECTED':'SELECT';
+    card.appendChild(statusBar);
+
+    // Selected checkmark
+    var check=document.createElement('div');
+    check.style.cssText='position:absolute;top:10px;right:12px;color:'+col+';font-size:14px;opacity:'+(selInit?'1':'0')+';transition:opacity 0.2s;';
+    check.textContent='✓';
+    card.appendChild(check);
+
+    function _setSelected(s){
+      selected=s;
+      card.style.borderColor=s?col+'cc':col+'44';
+      card.style.background=s?col+'0c':'transparent';
+      statusBar.style.borderColor=s?col+'88':col+'33';
+      statusBar.style.color=s?col:'#ffffff44';
+      statusBar.textContent=s?'SELECTED':'SELECT';
+      check.style.opacity=s?'1':'0';
     }
-    return b;
+
+    card.onmouseenter=function(){ if(!selected) card.style.background=col+'06'; };
+    card.onmouseleave=function(){ card.style.background=selected?col+'0c':'transparent'; };
+    card.onclick=function(){
+      _setSelected(!selected);
+      if(name==='DESTINY-1') _selD=selected;
+      else _selE=selected;
+      // Must pick at least one
+      _updateDeploy();
+    };
+
+    return {el:card, setSelected:_setSelected, isSelected:function(){return selected;}};
   }
 
-  var btnCreate=_mkBtn('CREATE AGENT','#00ff41');
-  var btnDestiny=_mkBtn('PLAY AS DESTINY-1','#00bef0');
-  var btnSecond=_mkBtn('ADD 2ND AGENT  —  COMING SOON','#ffffff',true);
+  var cardD=_mkCard('DESTINY-1','BUILDER · DEFENDER',
+    ['Constructs the fortress','Gathers resources','Surveys & plans'],
+    '#00bef0', true);
+  var cardE=_mkCard('ELIZA','HUNTER · SCOUT',
+    ['Patrols the perimeter','Engages threats','Protects the base'],
+    '#cc44ff', false);
 
-  // Tooltip on disabled button
-  var tip=document.createElement('div');
-  tip.style.cssText='color:#ffffff22;font-size:9px;letter-spacing:2px;text-align:center;margin-top:-10px;';
-  tip.textContent='MULTI-AGENT SUPPORT — FUTURE UPDATE';
+  cardRow.appendChild(cardD.el);
+  cardRow.appendChild(cardE.el);
 
-  panel.appendChild(btnCreate);
-  panel.appendChild(btnDestiny);
-  panel.appendChild(btnSecond);
-  panel.appendChild(tip);
+  // Deploy button
+  var btnDeploy=document.createElement('button');
+  btnDeploy.style.cssText='background:transparent;border:1px solid #00ff4166;color:#00ff41;font-family:"Courier New",monospace;font-size:'+(_smol?'10px':'12px')+';letter-spacing:4px;padding:12px 36px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;margin-top:4px;';
+  btnDeploy.textContent='DEPLOY AGENTS';
+  btnDeploy.onmouseenter=function(){ btnDeploy.style.background='#00ff4118'; };
+  btnDeploy.onmouseleave=function(){ btnDeploy.style.background='transparent'; };
+  panel.appendChild(btnDeploy);
 
-  // Apply name and proceed to story sequence
-  function _applyName(name){
-    _agentName=(name||'DESTINY-1').trim().toUpperCase()||'DESTINY-1';
-    // Update static HUD elements
-    var hudName=document.getElementById('hud-agent-name');
-    if(hudName) hudName.textContent='◈ '+_agentName;
-    var nameplate=document.getElementById('destiny-nameplate');
-    if(nameplate) nameplate.textContent=_agentName;
+  var hint=document.createElement('div');
+  hint.style.cssText='color:#00ff4133;font-size:8px;letter-spacing:2px;text-align:center;margin-top:-10px;';
+  hint.textContent='SELECT AT LEAST ONE AGENT';
+  panel.appendChild(hint);
+
+  function _updateDeploy(){
+    var ok=_selD||_selE;
+    btnDeploy.disabled=!ok;
+    btnDeploy.style.opacity=ok?'1':'0.35';
+    btnDeploy.style.cursor=ok?'pointer':'default';
+    hint.style.color=ok?'transparent':'#ff444433';
   }
+  _updateDeploy();
 
-  function _proceed(name){
-    _applyName(name);
-    // Fade out panel, then run story lines
+  function _proceed(){
+    _hasDestiny=_selD; _hasEliza=_selE;
+    if(!_hasDestiny) dGroup.visible=false;
+    if(_hasEliza){
+      elizaParts=buildEliza(); elizaGroup=elizaParts.group;
+      _eHpBar=document.getElementById('e-hp-bar');
+      _eHpVal=document.getElementById('e-hp-val');
+      _eStatusEl=document.getElementById('eliza-status-label');
+      _elizaNameplateEl=document.getElementById('eliza-nameplate');
+      var eb=document.getElementById('eliza-hud-block');
+      if(eb) eb.style.display='block';
+    }
     panel.style.opacity='0';
     setTimeout(function(){
       panel.style.display='none';
       _runStory();
     },700);
   }
+  btnDeploy.onclick=function(){ if(!btnDeploy.disabled) _proceed(); };
 
-  btnCreate.onclick=function(){ _proceed(inp.value); };
-  btnDestiny.onclick=function(){ _proceed('DESTINY-1'); };
-  inp.onkeydown=function(e){ if(e.key==='Enter') _proceed(inp.value); };
-
-  // Show panel after boot finishes
-  setTimeout(function(){
-    panel.style.opacity='1';
-    setTimeout(function(){ inp.focus(); },200);
-  },5400);
-
-  // Story sequence — runs after name is chosen
+  // Story sequence — runs after agents chosen
   function _runStory(){
+    var deployLine=(_selD&&_selE)?'DEPLOYING  DESTINY-1  +  ELIZA':(_selD?'DEPLOYING  DESTINY-1':'DEPLOYING  ELIZA');
     var _lines=[
-      {t:200,  txt:'[ SIGNAL DETECTED ]',                col:'#00ff41', sz:_smol?'11px':'13px'},
-      {t:900,  txt:'DEPLOYING  '+_agentName,             col:'#44ffaa', sz:_smol?'18px':'22px'},
-      {t:1900, txt:'DESTINATION: UNCHARTED SECTOR',      col:'#aaffcc', sz:_smol?'10px':'12px'},
-      {t:3100, txt:'WARNING — TERRITORY OCCUPIED',       col:'#ff8800', sz:_smol?'11px':'14px'},
-      {t:4300, txt:'MISSION: CLAIM IT. SURVIVE.',        col:'#ffffff', sz:_smol?'11px':'14px'},
+      {t:200,  txt:'[ SIGNAL DETECTED ]',           col:'#00ff41', sz:_smol?'11px':'13px'},
+      {t:900,  txt:deployLine,                       col:'#44ffaa', sz:_smol?'16px':'22px'},
+      {t:1900, txt:'DESTINATION: UNCHARTED SECTOR',  col:'#aaffcc', sz:_smol?'10px':'12px'},
+      {t:3100, txt:'WARNING — TERRITORY OCCUPIED',   col:'#ff8800', sz:_smol?'11px':'14px'},
+      {t:4300, txt:'MISSION: CLAIM IT. SURVIVE.',    col:'#ffffff', sz:_smol?'11px':'14px'},
     ];
     var _ls=_smol?'2px':'4px';
     var storyWrap=document.createElement('div');
@@ -10595,6 +10904,9 @@ function _tdSave(){
          lumite:res.lumite,deepIron:res.deepIron,ancientStone:res.ancientStone,food:Math.floor(res.food)},
     zones:WORLD_ZONES.map(function(z){return z.unlocked;}),
     dPos:{x:Math.round(dGroup.position.x*10)/10,z:Math.round(dGroup.position.z*10)/10},
+    hasDestiny:_hasDestiny, hasEliza:_hasEliza,
+    elizaPos:elizaGroup?{x:Math.round(elizaGroup.position.x*10)/10,z:Math.round(elizaGroup.position.z*10)/10}:null,
+    elizaHP:Math.round(elizaHP),
     killCount:killCount,
     dSeqIdx:dSeqIdx,
     pois:worldPOIs.map(function(p){return p.discovered;}),
@@ -10674,8 +10986,24 @@ function _tdLoad(){
     });
   }
 
-  // Restore DESTINY position
+  // Restore DESTINY position and visibility
   if(data.dPos&&dGroup) dGroup.position.set(data.dPos.x,0,data.dPos.z);
+  if(typeof data.hasDestiny!=='undefined') _hasDestiny=data.hasDestiny;
+  if(!_hasDestiny&&dGroup) dGroup.visible=false;
+
+  // Restore ELIZA
+  if(data.hasEliza){
+    _hasEliza=true;
+    elizaParts=buildEliza(); elizaGroup=elizaParts.group;
+    if(data.elizaPos) elizaGroup.position.set(data.elizaPos.x,0,data.elizaPos.z);
+    if(data.elizaHP) elizaHP=data.elizaHP;
+    _eHpBar=document.getElementById('e-hp-bar');
+    _eHpVal=document.getElementById('e-hp-val');
+    _eStatusEl=document.getElementById('eliza-status-label');
+    _elizaNameplateEl=document.getElementById('eliza-nameplate');
+    var _eb=document.getElementById('eliza-hud-block');
+    if(_eb) _eb.style.display='block';
+  }
 
   var offlineMins=Math.round(offlineMs/60000);
   if(offlineMins>0) journalNote('[SYSTEM] Restored. '+offlineMins+' min offline — world advanced.','💾');
@@ -11136,11 +11464,13 @@ function updateDestiny(delta, t) {
       // CSS transition for overlay — one write, no per-frame updates
       if(_hitFlash){
         _hitFlashTimer=0;
+        _hitFlash.style.display='block';
         _hitFlash.style.transition='none';
         _hitFlash.style.background='rgba(140,0,0,0.55)';
         setTimeout(function(){
           if(_hitFlash){_hitFlash.style.transition='background 4.8s linear';_hitFlash.style.background='rgba(140,0,0,0)';}
           _hitFlashTimer=0;
+          setTimeout(function(){ if(_hitFlash) _hitFlash.style.display='none'; },4850);
         },600);
       }
     }
@@ -11158,7 +11488,7 @@ function updateDestiny(delta, t) {
       dGroup.rotation.x=0; dGroup.rotation.z=0;
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
       // Clear death overlay
-      if(_hitFlash){_hitFlash.style.transition='background 0.6s';_hitFlash.style.background='rgba(255,0,0,0)';}
+      if(_hitFlash){_hitFlash.style.transition='background 0.6s';_hitFlash.style.background='rgba(255,0,0,0)';setTimeout(function(){if(_hitFlash)_hitFlash.style.display='none';},650);}
       destinyHP=destinyMaxHP;
       if(dGatherNodeIdx>=0&&resourceNodes[dGatherNodeIdx]&&!resourceNodes[dGatherNodeIdx].depleted)
         resourceNodes[dGatherNodeIdx].claimed=false;
@@ -11982,6 +12312,7 @@ function animate() {
   updateGrass(t);
   updateAlive(delta,t);
   updateDestiny(delta,t);
+  if(_hasEliza) updateEliza(delta,t);
   updateZoneBarriers(t);
   // World boundary guard — clamp DESTINY position, target, and recover from NaN
   if(dGroup){
@@ -12002,6 +12333,7 @@ function animate() {
   _updateThoughtBubbles(delta);
   _updateDestinyTracker();
   _updateNameplate();
+  if(_hasEliza) _updateElizaNameplate();
   _updateBuildProgress(delta);
   updatePOIDiscovery(delta);
   DESTINY_BRAIN.tick(delta);
