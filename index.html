@@ -10376,11 +10376,11 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
 
   var _smol=window.innerWidth<900;
 
-  // Black overlay — starts transparent, crossfades in with boot
+  // Black overlay — not in DOM until boot is fully gone, then snaps to black instantly.
+  // Boot background is #000, overlay background is #000 — seamless hand-off, no flash.
   var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;opacity:0;z-index:998;pointer-events:all;font-family:"Courier New",monospace;';
-  document.body.appendChild(ov);
-  setTimeout(function(){ ov.style.transition='opacity 1.2s'; ov.style.opacity='1'; },3800);
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:998;pointer-events:all;font-family:"Courier New",monospace;';
+  setTimeout(function(){ document.body.appendChild(ov); },5050);
 
   // ── Agent creation panel (shown after boot fades) ─────────────────
   var panel=document.createElement('div');
