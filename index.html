@@ -2296,7 +2296,7 @@ function _sfxStartRain(){
   _rainGain=_sfxCtx.createGain(); _rainGain.gain.value=0.001;
   _rainNode.connect(bp); bp.connect(_rainGain); _rainGain.connect(_sfxCtx.destination);
   _rainNode.start();
-  _rainGain.gain.setTargetAtTime(0.2,_sfxCtx.currentTime,2.0);
+  _rainGain.gain.setTargetAtTime(0.09,_sfxCtx.currentTime,2.0);
 }
 
 function _sfxStopRain(){
@@ -8193,7 +8193,7 @@ function updateThreatSpawner(delta){
   }
   threatSpawnTimer-=delta;
   if(threatSpawnTimer<=0){
-    threatSpawnTimer=35+Math.random()*47; // ~15% more frequent spawns
+    threatSpawnTimer=31+Math.random()*43; // ~25% more frequent than original
     if(aliveCount>=4&&activeThreatCount<4){ spawnThreat(); if(Math.random()>0.55) triggerRain(10); }
     // Extra spawn when many structures exist
     if(aliveCount>=12&&activeThreatCount<6&&Math.random()>0.55) spawnThreat();
@@ -9565,24 +9565,24 @@ function buildVoidWolf(g) {
 // ── Native type registry ──────────────────────────────────────────────
 var _NATIVE_TYPES=[
   // grunt tier
-  {type:'goblinScout',   rank:'grunt',    hp:8,  spd:1.25, sc:0.78, alertR:6.5, builder:buildGoblinScout,   banTitle:'NATIVE TERRITORY', banSub:'Goblin scout protecting these lands'},
-  {type:'forestRanger',  rank:'grunt',    hp:8,  spd:1.15, sc:0.88, alertR:8.0, builder:buildForestRanger,  banTitle:'NATIVE TERRITORY', banSub:'Forest ranger defending this zone'},
+  {type:'goblinScout',   rank:'grunt',    hp:8,  spd:1.25, sc:0.78, alertR:8.0,  builder:buildGoblinScout,   banTitle:'NATIVE TERRITORY', banSub:'Goblin scout protecting these lands'},
+  {type:'forestRanger',  rank:'grunt',    hp:8,  spd:1.15, sc:0.88, alertR:9.5,  builder:buildForestRanger,  banTitle:'NATIVE TERRITORY', banSub:'Forest ranger defending this zone'},
   // warrior tier
-  {type:'tribeSoldier',  rank:'warrior',  hp:16, spd:0.98, sc:0.90, alertR:7.5, builder:buildTribeSoldier,  banTitle:'NATIVE TERRITORY', banSub:'Tribal warrior guards this ground'},
-  {type:'orcGuard',      rank:'warrior',  hp:16, spd:0.90, sc:0.92, alertR:8.0, builder:buildOrcGuard,      banTitle:'ORC TERRITORY',    banSub:'Orc clan patrols this region'},
-  {type:'lizardmanHunter',rank:'warrior', hp:16, spd:1.05, sc:0.88, alertR:9.0, builder:buildLizardmanHunter,banTitle:'NATIVE TERRITORY', banSub:'Lizardman hunter spotted ahead'},
-  {type:'boneSkeleton',  rank:'warrior',  hp:16, spd:0.92, sc:0.90, alertR:7.0, builder:buildBoneSkeleton,  banTitle:'UNDEAD PRESENCE',  banSub:'Skeletal warrior roams this area'},
+  {type:'tribeSoldier',  rank:'warrior',  hp:16, spd:0.98, sc:0.90, alertR:9.0,  builder:buildTribeSoldier,  banTitle:'NATIVE TERRITORY', banSub:'Tribal warrior guards this ground'},
+  {type:'orcGuard',      rank:'warrior',  hp:16, spd:0.90, sc:0.92, alertR:9.5,  builder:buildOrcGuard,      banTitle:'ORC TERRITORY',    banSub:'Orc clan patrols this region'},
+  {type:'lizardmanHunter',rank:'warrior', hp:16, spd:1.05, sc:0.88, alertR:11.0, builder:buildLizardmanHunter,banTitle:'NATIVE TERRITORY', banSub:'Lizardman hunter spotted ahead'},
+  {type:'boneSkeleton',  rank:'warrior',  hp:16, spd:0.92, sc:0.90, alertR:8.5,  builder:buildBoneSkeleton,  banTitle:'UNDEAD PRESENCE',  banSub:'Skeletal warrior roams this area'},
   // elite tier
-  {type:'stoneWarden',   rank:'elite',    hp:24, spd:0.82, sc:0.94, alertR:9.5, builder:buildStoneWarden,   banTitle:'ELITE GUARDIAN',   banSub:'Stone warden holding this territory'},
-  {type:'dwarfSentinel', rank:'elite',    hp:24, spd:0.78, sc:0.88, alertR:8.5, builder:buildDwarfSentinel, banTitle:'DWARVEN OUTPOST',  banSub:'Dwarf sentinel stands watch here'},
-  {type:'mercenary',     rank:'elite',    hp:24, spd:0.88, sc:0.92, alertR:8.0, builder:buildMercenary,     banTitle:'HIRED BLADE',      banSub:'Mercenary hired to defend this zone'},
-  {type:'caveSpider',    rank:'elite',    hp:24, spd:1.00, sc:0.94, alertR:7.5, builder:buildCaveSpider,    banTitle:'CREATURE WARNING', banSub:'Cave spider nest nearby'},
+  {type:'stoneWarden',   rank:'elite',    hp:24, spd:0.82, sc:0.94, alertR:11.5, builder:buildStoneWarden,   banTitle:'ELITE GUARDIAN',   banSub:'Stone warden holding this territory'},
+  {type:'dwarfSentinel', rank:'elite',    hp:24, spd:0.78, sc:0.88, alertR:10.0, builder:buildDwarfSentinel, banTitle:'DWARVEN OUTPOST',  banSub:'Dwarf sentinel stands watch here'},
+  {type:'mercenary',     rank:'elite',    hp:24, spd:0.88, sc:0.92, alertR:9.5,  builder:buildMercenary,     banTitle:'HIRED BLADE',      banSub:'Mercenary hired to defend this zone'},
+  {type:'caveSpider',    rank:'elite',    hp:24, spd:1.00, sc:0.94, alertR:9.0,  builder:buildCaveSpider,    banTitle:'CREATURE WARNING', banSub:'Cave spider nest nearby'},
   // champion tier
-  {type:'stoneTroll',    rank:'champion', hp:36, spd:0.62, sc:1.00, alertR:6.5, builder:buildStoneTroll,    banTitle:'DANGER ZONE',      banSub:'Stone troll rules this territory'},
-  {type:'shadowWraith',  rank:'champion', hp:28, spd:0.80, sc:0.96, alertR:10., builder:buildShadowWraith,  banTitle:'DARK PRESENCE',    banSub:'Shadow wraith haunts these lands'},
-  {type:'crystalGolem',  rank:'champion', hp:36, spd:0.55, sc:1.00, alertR:7.0, builder:buildCrystalGolem,  banTitle:'CRYSTAL GUARDIAN', banSub:'Crystal golem defends the deposits'},
-  {type:'ashmaneTitan',  rank:'champion', hp:48, spd:0.58, sc:1.02, alertR:8.0, builder:buildAshmane,       banTitle:'ANCIENT WARLORD',  banSub:'Ashenmane Titan — elder warrior of the old world'},
-  {type:'voidWolf',      rank:'champion', hp:44, spd:0.75, sc:1.00, alertR:11.0, builder:buildVoidWolf,      banTitle:'VOID BEAST',       banSub:'Ancient wolf creature — hunts without mercy'}
+  {type:'stoneTroll',    rank:'champion', hp:36, spd:0.62, sc:1.00, alertR:8.0,  builder:buildStoneTroll,    banTitle:'DANGER ZONE',      banSub:'Stone troll rules this territory'},
+  {type:'shadowWraith',  rank:'champion', hp:28, spd:0.80, sc:0.96, alertR:12.0, builder:buildShadowWraith,  banTitle:'DARK PRESENCE',    banSub:'Shadow wraith haunts these lands'},
+  {type:'crystalGolem',  rank:'champion', hp:36, spd:0.55, sc:1.00, alertR:8.5,  builder:buildCrystalGolem,  banTitle:'CRYSTAL GUARDIAN', banSub:'Crystal golem defends the deposits'},
+  {type:'ashmaneTitan',  rank:'champion', hp:48, spd:0.58, sc:1.02, alertR:9.5,  builder:buildAshmane,       banTitle:'ANCIENT WARLORD',  banSub:'Ashenmane Titan — elder warrior of the old world'},
+  {type:'voidWolf',      rank:'champion', hp:44, spd:0.75, sc:1.00, alertR:13.0, builder:buildVoidWolf,      banTitle:'VOID BEAST',       banSub:'Ancient wolf creature — hunts without mercy'}
 ];
 var _NATIVE_CHAT={
   goblinScout:     'Goblin scout blocking my path. Quick skirmish.',
@@ -11113,7 +11113,7 @@ function updateDestiny(delta, t) {
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
       // Clear death overlay
       if(_hitFlash){_hitFlash.style.transition='background 0.6s';_hitFlash.style.background='rgba(255,0,0,0)';}
-      destinyHP=20;
+      destinyHP=destinyMaxHP;
       if(dGatherNodeIdx>=0&&resourceNodes[dGatherNodeIdx]&&!resourceNodes[dGatherNodeIdx].depleted)
         resourceNodes[dGatherNodeIdx].claimed=false;
       dGatherNodeIdx=-1;
