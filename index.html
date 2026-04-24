@@ -9911,6 +9911,16 @@ function findAlertThreat() {
   }
   return best;
 }
+function findAlertThreatNear(group) {
+  if(!group) return null;
+  var best=null, bd=Infinity;
+  for(var i=0;i<threats.length;i++){
+    var th=threats[i]; if(!th.alive||th.dissolving) continue;
+    var d=th.group.position.distanceTo(group.position);
+    if((th.nState==='ALERT'||th.nState==='ATTACK'||th.nState==='CURIOUS')&&d<14&&d<bd){ best=th; bd=d; }
+  }
+  return best;
+}
 
 function updateThreats(delta, t) {
   if(_introActive) return;
@@ -10153,9 +10163,18 @@ var _agentName='DESTINY';
 var _hasDestiny=true, _hasEliza=false;
 var elizaGroup=null, elizaParts=null;
 var elizaHP=100, elizaMaxHP=100, elizaRegen=1.8;
-var eState='PATROL', eTarget=new THREE.Vector3(), eTimer=2.0, eWalk=0;
-var _eCurrentThreat=null, _eAtkCd=0, _ePatrolIdx=0;
+var eState='EXPLORE_WAIT', eTarget=new THREE.Vector3(), eTimer=4.0, eWalk=0;
+var _eCurrentThreat=null, _eAtkCd=0;
 var _eHpBar=null, _eHpVal=null, _eStatusEl=null, _elizaNameplateEl=null;
+var eSeqIdx=9999; // always autonomous — starts past the build sequence
+var eBuildType='', eBuildPos=new THREE.Vector3(), eBuildRot=0;
+var eGatherNodeIdx=-1, eGatherTimer=0, eCarrying=0, eCarryType='compute';
+var eRareNodeIdx=-1, eRareCarryType='lumite', eRareCarrying=0, eRareTimer=0;
+var eUpgradeTarget=null, eExplorePOI=null;
+var _eDeathCount=0, _eStunInitDone=false;
+var _eWanderT=0, _eWanderOX=0, _eWanderOZ=0;
+var _etv1=new THREE.Vector3(), _etv2=new THREE.Vector3();
+var E_SPEED=3.8;
 var dSeqIdx=0, dBuildType=BUILD_SEQUENCE[0], dBuildPos=new THREE.Vector3(), dBuildRot=0;
 var dCurrentThreat=null;
 var dArtPos=new THREE.Vector3(), dArtPick='';     // art walk destination + type
@@ -10475,6 +10494,30 @@ var _ELIZA_THOUGHTS=[
   'No threats detected. Yet.',
 ];
 
+function elizaChat(msg){
+  if(!chatLogEl) return;
+  var now=new Date();
+  var ts=('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
+  var line=document.createElement('div'); line.className='chat-line';
+  line.innerHTML='<span class="chat-ts">['+ts+']</span><span class="chat-name" style="color:#ff8800">ELIZA:</span><span class="chat-msg"> '+msg+'</span>';
+  chatLogEl.appendChild(line); chatLogEl.scrollTop=chatLogEl.scrollHeight;
+  while(chatLogEl.children.length>45) chatLogEl.removeChild(chatLogEl.firstChild);
+  _spawnThoughtBubble(msg, elizaGroup);
+}
+function elizaSetStatus(s){
+  if(_eStatusEl) _eStatusEl.textContent=s;
+}
+function _applyElizaWander(delta, dist){
+  _eWanderT+=delta*0.58;
+  var wa=(Math.sin(_eWanderT*0.41)*0.90+Math.sin(_eWanderT*0.19)*0.55+Math.sin(_eWanderT*0.07)*0.35);
+  var fade=Math.min(1.0,dist/10.0);
+  _eWanderOX=wa*fade*1.8;
+  _eWanderOZ=(Math.cos(_eWanderT*0.33)*0.80+Math.cos(_eWanderT*0.13)*0.45)*fade*1.8;
+}
+function _elizaWanderSpeedMult(){
+  return 0.80+Math.sin(_eWanderT*0.28)*0.14+Math.sin(_eWanderT*0.09)*0.08;
+}
+
 function updateEliza(delta, t){
   if(_introActive||!elizaGroup) return;
   var eg=elizaGroup, ep=elizaParts;
@@ -10484,122 +10527,635 @@ function updateEliza(delta, t){
   var ePct=Math.round((elizaHP/elizaMaxHP)*100);
   if(_eHpBar) _eHpBar.style.width=ePct+'%';
   if(_eHpVal) _eHpVal.textContent=Math.round(elizaHP);
+  if(_eHpBar) _eHpBar.className='mini-bar-fill '+(ePct>50?'bar-orange':ePct>25?'bar-red':'bar-red');
 
-  // Walk bob
-  if(eState==='PATROL'||eState==='ENGAGE'||eState==='RETURN'){
-    eWalk+=delta*2.8;
-    if(ep){
-      ep.legLPivot.rotation.x= Math.sin(eWalk)*0.40;
-      ep.legRPivot.rotation.x=-Math.sin(eWalk)*0.40;
-      ep.armLPivot.rotation.x=-Math.sin(eWalk)*0.22;
-      ep.armRPivot.rotation.x= Math.sin(eWalk)*0.22;
-      ep.head.rotation.y=Math.sin(t*0.9)*0.08;
-    }
-  } else {
-    eWalk=0;
-    if(ep){ep.legLPivot.rotation.x=0;ep.legRPivot.rotation.x=0;}
-  }
-
-  // Attack cooldown
   if(_eAtkCd>0) _eAtkCd-=delta;
 
-  var eSpd=3.8;
-  var ePos=eg.position;
+  // Ground ring — combat: red pulse; normal: orange pulse
+  var _eCombat=(eState==='DEFEND_WALK'||eState==='DEFEND_ATTACK');
+  if(ep&&ep.groundRing){
+    if(!_eCombat){
+      ep.groundRing.material.color.setHex(0xff8800);
+      ep.groundRing.material.opacity=0.22+Math.sin(t*2.3)*0.16;
+      ep.groundRing.scale.setScalar(1);
+    } else {
+      ep.groundRing.material.color.setHex(0xff2200);
+      ep.groundRing.material.opacity=0.55+Math.sin(t*12)*0.35;
+      ep.groundRing.scale.setScalar(1.3+Math.sin(t*8)*0.15);
+    }
+  }
 
-  if(eState==='PATROL'){
-    // Scan for nearby threats
-    var closest=null, closestDist=14;
-    for(var ti=0;ti<threats.length;ti++){
-      var th=threats[ti];
-      if(!th.alive||!th.group) continue;
-      var dx=th.group.position.x-ePos.x, dz=th.group.position.z-ePos.z;
-      var dist=Math.sqrt(dx*dx+dz*dz);
-      if(dist<closestDist){closestDist=dist;closest=th;}
+  // Interrupt for threats during non-combat states
+  if(eState==='BUILD_WALK'||eState==='BUILD_WAIT'||eState==='BUILD_ARRIVE'||
+     eState==='GATHER_WALK'||eState==='GATHERING'||eState==='GATHER_RETURN'||
+     eState==='RARE_WALK'||eState==='RARE_GATHER'||eState==='RARE_RETURN'||
+     eState==='UPGRADE_WALK'||eState==='EXPLORE_WALK'||eState==='EXPLORE_LINGER'||
+     eState==='SCOUT_WALK'||eState==='SCOUT_SURVEY'||eState==='EXPLORE_WAIT'){
+    var _eth=findAlertThreatNear(eg);
+    if(_eth){
+      if(eGatherNodeIdx>=0&&resourceNodes[eGatherNodeIdx]&&!resourceNodes[eGatherNodeIdx].depleted)
+        resourceNodes[eGatherNodeIdx].claimed=false;
+      eGatherNodeIdx=-1;
+      if(eRareNodeIdx>=0&&resourceNodes[eRareNodeIdx]&&!resourceNodes[eRareNodeIdx].depleted)
+        resourceNodes[eRareNodeIdx].claimed=false;
+      eRareNodeIdx=-1;
+      _eCurrentThreat=_eth;
+      elizaChat(_NATIVE_CHAT[_eth.type]||'Contact. Engaging.');
+      eState='DEFEND_WALK'; elizaSetStatus('DEFENDING');
     }
-    if(closest){
-      _eCurrentThreat=closest;
-      eState='ENGAGE';
-      if(_eStatusEl) _eStatusEl.textContent='ENGAGE';
-      eTimer=0;
-      return;
-    }
-    // Walk to next patrol waypoint
-    var wp=_ELIZA_PATROL[_ePatrolIdx];
-    var wdx=wp.x-ePos.x, wdz=wp.z-ePos.z;
-    var wdist=Math.sqrt(wdx*wdx+wdz*wdz);
-    if(wdist<1.2){
-      // Reached waypoint — pause briefly then move on
-      eState='PAUSE';
-      eTimer=1.2+Math.random()*1.0;
-      _ePatrolIdx=(_ePatrolIdx+1)%_ELIZA_PATROL.length;
-      if(_eStatusEl) _eStatusEl.textContent='SCANNING';
-      // Thought bubble occasionally
-      if(Math.random()<0.4) _spawnThoughtBubble(_ELIZA_THOUGHTS[_ePatrolIdx%_ELIZA_THOUGHTS.length], eg);
-      return;
-    }
-    var wnorm=1/wdist;
-    eg.position.x+=wdx*wnorm*eSpd*delta;
-    eg.position.z+=wdz*wnorm*eSpd*delta;
-    eg.rotation.y=Math.atan2(wdx,wdz);
+  }
 
-  } else if(eState==='PAUSE'){
+  if(eState==='BUILD_WALK'){
+    var bDist0e=_etv1.subVectors(eTarget,eg.position).length();
+    _applyElizaWander(delta,bDist0e); var bSpde=_elizaWanderSpeedMult();
+    eWalk+=delta*3.8*bSpde; var swe=Math.sin(eWalk)*0.44;
+    ep.legLPivot.rotation.x=swe; ep.legRPivot.rotation.x=-swe;
+    ep.armLPivot.rotation.x=-swe*0.5+Math.sin(t*0.9)*0.04; ep.armRPivot.rotation.x=swe*0.5+Math.sin(t*1.1)*0.04;
+    ep.head.rotation.y=Math.sin(t*0.4)*0.12;
+    _etv1.set(eTarget.x+_eWanderOX,0,eTarget.z+_eWanderOZ).sub(eg.position); _etv1.y=0;
+    _etv2.subVectors(eTarget,eg.position); _etv2.y=0;
+    if(_etv2.length()>0.20){_etv1.normalize();eg.position.addScaledVector(_etv1,E_SPEED*bSpde*delta);eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);}
+    else{eg.position.copy(eTarget);ep.legLPivot.rotation.x=0;ep.legRPivot.rotation.x=0;ep.armLPivot.rotation.x=0;ep.armRPivot.rotation.x=0;ep.head.rotation.y=0;eState='BUILD_ARRIVE';eTimer=D_BUILD_PAUSE;}
+
+  } else if(eState==='BUILD_ARRIVE'){
+    ep.armLPivot.rotation.x=Math.sin(t*1.2)*0.08; ep.armRPivot.rotation.x=-Math.sin(t*1.2)*0.08;
     eTimer-=delta;
-    if(eTimer<=0){ eState='PATROL'; if(_eStatusEl) _eStatusEl.textContent='PATROL'; }
+    if(eTimer<=0){eState='BUILD_PLACE';eTimer=D_PLACE_TIME;elizaChat(_getBuildThought(eBuildType));}
 
-  } else if(eState==='ENGAGE'){
-    // Check if threat still alive
-    if(!_eCurrentThreat||!_eCurrentThreat.alive||!_eCurrentThreat.group){
-      _eCurrentThreat=null; eState='RETURN'; eTimer=2.0;
-      if(_eStatusEl) _eStatusEl.textContent='RETURN';
-      return;
-    }
-    var tx=_eCurrentThreat.group.position.x-ePos.x;
-    var tz=_eCurrentThreat.group.position.z-ePos.z;
-    var tdist=Math.sqrt(tx*tx+tz*tz);
-    eg.rotation.y=Math.atan2(tx,tz);
-    if(tdist>2.5){
-      eg.position.x+=tx/tdist*eSpd*delta;
-      eg.position.z+=tz/tdist*eSpd*delta;
-    } else {
-      // In attack range — deal damage
-      if(_eAtkCd<=0){
-        _eCurrentThreat.hp-=7;
-        _eAtkCd=1.4;
-        _spawnDmgNumber(_eCurrentThreat.group.position.clone().setY(1.5),'-7 [ELIZA]','#ff8800');
-        if(_eCurrentThreat.hp<=0) _eCurrentThreat.alive=false;
-        // Eliza takes retaliation damage
-        elizaHP=Math.max(0,elizaHP-(_eCurrentThreat.atkDmg||4)*0.6);
-        if(elizaHP<=0){ eState='STUNNED'; eTimer=5; if(_eStatusEl) _eStatusEl.textContent='STUNNED'; }
+  } else if(eState==='BUILD_PLACE'){
+    ep.armLPivot.rotation.x=-0.45+Math.sin(t*9)*0.1; ep.armRPivot.rotation.x=-0.45+Math.sin(t*9+1)*0.1;
+    eTimer-=delta;
+    if(eTimer<=0){
+      deductCost(eBuildType);
+      placeStructure(eBuildType,eBuildPos.clone(),eBuildRot);
+      createBurst(eg.position.clone().setY(0.6),0xff8800,28);
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
+      journalNote('✅ ELIZA built: '+eBuildType,'🔧');
+      elizaSetStatus('BUILDING');
+      var nextAe=pickAutonomousBuild();
+      if(nextAe&&BUILD_COSTS[nextAe]){
+        eBuildType=nextAe;
+        var neededAe=resourceNeeded(nextAe);
+        if(!neededAe){
+          var bPosAe=chooseBuildPos(nextAe,null);
+          if(bPosAe){
+            eBuildPos.copy(bPosAe); eBuildRot=Math.atan2(bPosAe.x,bPosAe.z);
+            eTarget.copy(bPosAe); eState='BUILD_WALK'; elizaSetStatus('MOVING');
+            elizaChat('Building: '+nextAe); return;
+          }
+        } else {
+          var nIdxAe=findFreeNode(neededAe);
+          if(nIdxAe!==-1){
+            eGatherNodeIdx=nIdxAe; resourceNodes[nIdxAe].claimed=true;
+            eCarryType=neededAe; eTarget.copy(resourceNodes[nIdxAe].pos);
+            eState='GATHER_WALK'; elizaSetStatus('GATHERING');
+            elizaChat('Need '+_resName(neededAe)+' for '+nextAe+'.'); return;
+          }
+        }
       }
-      // Check if threat died
-      if(!_eCurrentThreat.alive){
-        _eCurrentThreat=null; eState='RETURN'; eTimer=1.5;
-        if(_eStatusEl) _eStatusEl.textContent='RETURN';
-        destinyChat('[ELIZA] Target down.');
-      }
+      eState='EXPLORE_WAIT'; eTimer=8; elizaSetStatus('PLANNING');
+
     }
 
-  } else if(eState==='RETURN'){
-    // Walk back toward base center
-    var rdx=-ePos.x, rdz=-ePos.z;
-    var rdist=Math.sqrt(rdx*rdx+rdz*rdz);
-    eg.rotation.y=Math.atan2(rdx,rdz);
-    if(rdist<8||eTimer<=0){
-      eState='PATROL';
-      if(_eStatusEl) _eStatusEl.textContent='PATROL';
+  } else if(eState==='BUILD_WAIT'){
+    ep.head.rotation.y=Math.sin(t*0.35)*0.22+Math.sin(t*0.14)*0.10;
+    ep.armLPivot.rotation.x=Math.sin(t*0.8)*0.07; ep.armRPivot.rotation.x=-Math.sin(t*0.8)*0.07;
+    eTimer-=delta;
+    if(eTimer<=0){
+      var eBT=pickAutonomousBuild();
+      if(eBT&&BUILD_COSTS[eBT]){
+        eBuildType=eBT;
+        var neededBW=resourceNeeded(eBT);
+        if(!neededBW){
+          var bPosBW=chooseBuildPos(eBT,null);
+          if(bPosBW){
+            eBuildPos.copy(bPosBW); eBuildRot=Math.atan2(bPosBW.x,bPosBW.z);
+            eTarget.copy(bPosBW); eState='BUILD_WALK'; elizaSetStatus('MOVING');
+            elizaChat('Building: '+eBT); return;
+          } else { eTimer=8; }
+        } else {
+          var nBW=findFreeNode(neededBW);
+          if(nBW!==-1){
+            eGatherNodeIdx=nBW; resourceNodes[nBW].claimed=true;
+            eCarryType=neededBW; eTarget.copy(resourceNodes[nBW].pos);
+            eState='GATHER_WALK'; elizaSetStatus('GATHERING');
+            elizaChat('Gathering '+_resName(neededBW)+'.'); return;
+          } else { eTimer=5; elizaSetStatus('WAITING'); }
+        }
+      } else { eState='EXPLORE_WAIT'; eTimer=6; elizaSetStatus('PLANNING'); }
+    }
+
+  } else if(eState==='GATHER_WALK'){
+    if(eGatherNodeIdx<0||resourceNodes[eGatherNodeIdx].depleted){
+      var altE=findFreeNode(eCarryType);
+      if(altE!==-1){eGatherNodeIdx=altE;resourceNodes[altE].claimed=true;eTarget.copy(resourceNodes[altE].pos);}
+      else{eState='BUILD_WAIT';eTimer=5;return;}
+    }
+    var gDiste=_etv1.subVectors(eTarget,eg.position).length();
+    _applyElizaWander(delta,gDiste); var gSpde=_elizaWanderSpeedMult();
+    eWalk+=delta*3.8*gSpde; var sgwe=Math.sin(eWalk)*0.44;
+    ep.legLPivot.rotation.x=sgwe; ep.legRPivot.rotation.x=-sgwe;
+    ep.armLPivot.rotation.x=-sgwe*0.5; ep.armRPivot.rotation.x=sgwe*0.5;
+    ep.head.rotation.y=Math.sin(t*0.35)*0.14+Math.sin(t*0.9)*0.06;
+    _etv1.set(eTarget.x+_eWanderOX,0,eTarget.z+_eWanderOZ).sub(eg.position); _etv1.y=0;
+    _etv2.subVectors(eTarget,eg.position); _etv2.y=0;
+    if(_etv2.length()>0.22){_etv1.normalize();eg.position.addScaledVector(_etv1,E_SPEED*gSpde*delta);eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);}
+    else{ep.legLPivot.rotation.x=0;ep.legRPivot.rotation.x=0;ep.armLPivot.rotation.x=0;ep.armRPivot.rotation.x=0;ep.head.rotation.y=0;eState='GATHERING';eGatherTimer=0;}
+
+  } else if(eState==='GATHERING'){
+    eGatherTimer+=delta;
+    var mswe=Math.sin(t*7.0)*0.55;
+    ep.armLPivot.rotation.x=-0.65+mswe*0.30; ep.armRPivot.rotation.x=-0.65-mswe*0.30;
+    var gatherNeedede=(eCarryType==='crystalium')?18.0:D_GATHER_TIME;
+    if(eGatherTimer>=gatherNeedede){
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
+      if(eGatherNodeIdx>=0&&resourceNodes[eGatherNodeIdx]){
+        var edne=resourceNodes[eGatherNodeIdx];
+        edne.depleted=true; edne.claimed=false;
+        edne.regenTimer=edne.isDungeon?90:NODE_REGEN_TIME;
+      }
+      eCarrying=D_CARRY[eCarryType]||15; eGatherNodeIdx=-1;
+      createBurst(eg.position.clone().setY(0.8),0xff8800,10);
+      elizaChat('Mined '+eCarrying+' '+eCarryType+'. Returning.');
+      eTarget.set(-2,0,-2); eState='GATHER_RETURN'; elizaSetStatus('RETURNING');
+    }
+
+  } else if(eState==='GATHER_RETURN'){
+    eWalk+=delta*3.8; var srwe=Math.sin(eWalk)*0.44;
+    ep.legLPivot.rotation.x=srwe; ep.legRPivot.rotation.x=-srwe;
+    ep.armLPivot.rotation.x=-0.28+srwe*0.18; ep.armRPivot.rotation.x=-0.28-srwe*0.18;
+    _etv1.subVectors(eTarget,eg.position); _etv1.y=0;
+    if(_etv1.length()>0.22){_etv1.normalize();eg.position.addScaledVector(_etv1,E_SPEED*delta);eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);}
+    else{ep.legLPivot.rotation.x=0;ep.legRPivot.rotation.x=0;ep.armLPivot.rotation.x=0;ep.armRPivot.rotation.x=0;eState='GATHER_DEPOSIT';eTimer=1.0;}
+
+  } else if(eState==='GATHER_DEPOSIT'){
+    ep.armLPivot.rotation.x=Math.sin(t*4)*0.28-0.22;
+    ep.armRPivot.rotation.x=-Math.sin(t*4)*0.28-0.22;
+    eTimer-=delta;
+    if(eTimer<=0){
+      res[eCarryType]+=eCarrying;
+      eCarrying=0; updateResDisplay();
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
+      elizaSetStatus('PLANNING');
+      eState='EXPLORE_WAIT'; eTimer=1.5;
+    }
+
+  } else if(eState==='DEFEND_WALK'){
+    if(!_eCurrentThreat||!_eCurrentThreat.alive){
+      _eCurrentThreat=null;
+      eg.rotation.x=0;
+      elizaSetStatus('PLANNING');
+      eState='EXPLORE_WAIT'; eTimer=4; return;
+    }
+    eWalk+=delta*5.0; var sw2e=Math.sin(eWalk)*0.52;
+    ep.legLPivot.rotation.x=sw2e; ep.legRPivot.rotation.x=-sw2e;
+    ep.armLPivot.rotation.x=-0.55+sw2e*0.3; ep.armRPivot.rotation.x=-0.55-sw2e*0.3;
+    eg.rotation.x=0.14;
+    _etv2.copy(_eCurrentThreat.group.position); _etv2.y=0;
+    _etv1.subVectors(_etv2,eg.position);
+    if(_etv1.length()>ATTACK_RANGE){
+      _etv1.normalize(); eg.position.addScaledVector(_etv1,E_SPEED*1.4*delta);
+      eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
+      if(Math.random()>0.88) createBurst(eg.position.clone().setY(0.3),0xff8800,4);
     } else {
-      eTimer-=delta;
-      eg.position.x+=rdx/rdist*eSpd*delta;
-      eg.position.z+=rdz/rdist*eSpd*delta;
+      ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0;
+      eg.rotation.x=0;
+      eState='DEFEND_ATTACK'; eTimer=1.1;
+      createBurst(eg.position.clone().setY(1.0),0xff6600,16);
+    }
+
+  } else if(eState==='DEFEND_ATTACK'){
+    eg.rotation.x=0.18;
+    if(ep.groundRing) ep.groundRing.material.opacity=0.95+Math.sin(t*30)*0.05;
+    var _eAtkPhase=Math.sin(t*22);
+    ep.armRPivot.rotation.x=-1.10+_eAtkPhase*0.55;
+    ep.armRPivot.rotation.z=-0.25+_eAtkPhase*0.20;
+    ep.armLPivot.rotation.x=-0.45-_eAtkPhase*0.25;
+    ep.armLPivot.rotation.z=0.20;
+    eg.rotation.z=_eAtkPhase*0.06;
+    ep.legLPivot.rotation.x=0.12+Math.abs(_eAtkPhase)*0.08;
+    ep.legRPivot.rotation.x=0.08;
+    if(_eCurrentThreat&&_eCurrentThreat.alive){
+      _etv1.subVectors(_eCurrentThreat.group.position,eg.position); _etv1.y=0;
+      if(_etv1.length()>0.1) eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
+      if(Math.random()>0.82){
+        var _ehsp=_eCurrentThreat.group.position.clone().setY(1.0+Math.random()*0.8);
+        createBurst(_ehsp,0xff8800,5);
+      }
+    }
+    eTimer-=delta;
+    if(eTimer<=0){
+      eg.rotation.x=0; eg.rotation.z=0;
+      ep.armLPivot.rotation.x=0; ep.armLPivot.rotation.z=0;
+      ep.armRPivot.rotation.x=0; ep.armRPivot.rotation.z=0;
+      ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0;
+      if(_eCurrentThreat&&_eCurrentThreat.alive){
+        var _ehitPos=_eCurrentThreat.group.position.clone();
+        createAttackEffect(_ehitPos.clone());
+        createBurst(_ehitPos.clone().setY(1.4),0xffffff,10);
+        createBurst(_ehitPos.clone().setY(1.1),0xff8800,36);
+        createBurst(_ehitPos.clone().setY(0.4),0xff4400,18);
+        var _ehpFrac=_eCurrentThreat.hp/_eCurrentThreat.maxHp;
+        if(_ehpFrac<0.35) createBurst(_ehitPos.clone().setY(1.6),0xffff00,22);
+        // Impact ring
+        var _eir=new THREE.Mesh(
+          new THREE.RingBufferGeometry(0.10,0.65,18),
+          new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.92,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide})
+        );
+        _eir.rotation.x=-Math.PI/2; _eir.position.copy(_ehitPos); _eir.position.y=0.08;
+        scene.add(_eir);
+        (function(_rim){ var _rlt=0;
+          var _rfn=function(){ _rlt+=0.055; _rim.material.opacity=Math.max(0,0.92-_rlt*2.2); _rim.scale.setScalar(1+_rlt*4); if(_rlt<0.42) requestAnimationFrame(_rfn); else scene.remove(_rim); };
+          requestAnimationFrame(_rfn);
+        })(_eir);
+        // Knockback
+        if(_eCurrentThreat.group){
+          _etv1.subVectors(_eCurrentThreat.group.position,eg.position).normalize();
+          _eCurrentThreat.group.position.addScaledVector(_etv1,0.55+Math.random()*0.30);
+          _eCurrentThreat.pos.copy(_eCurrentThreat.group.position);
+          if(_eCurrentThreat.glowMat){
+            var _eHitOrigHex=_eCurrentThreat.glowMat.color.getHex();
+            _eCurrentThreat.glowMat.color.setHex(0xff1100);
+            (function(_gm,_oh){ setTimeout(function(){ if(_gm) _gm.color.setHex(_oh); },180); })(_eCurrentThreat.glowMat,_eHitOrigHex);
+          }
+        }
+        // Deal damage
+        var _eHitLanded=!_eCurrentThreat._invincible;
+        if(_eHitLanded&&_eCurrentThreat._dmgReduce) _eHitLanded=Math.random()<_eCurrentThreat._dmgReduce;
+        if(_eHitLanded){ _sfxHit(); _eCurrentThreat.hp--; }
+        // Crystal golem shard burst
+        if(_eHitLanded&&_eCurrentThreat.type==='crystalGolem'){
+          if(!_eCurrentThreat._cgWin||_eCurrentThreat._cgWin<=0){_eCurrentThreat._cgHits=0;_eCurrentThreat._cgWin=5;}
+          _eCurrentThreat._cgHits=(_eCurrentThreat._cgHits||0)+1;
+          if(_eCurrentThreat._cgHits>=3&&(!_eCurrentThreat._shardCd||_eCurrentThreat._shardCd<=0)){
+            _eCurrentThreat._cgHits=0;_eCurrentThreat._cgWin=0;_eCurrentThreat._shardCd=8;
+            createBurst(_eCurrentThreat.group.position.clone().setY(1.2),0x00ffff,40);
+            elizaHP=Math.max(0,elizaHP-6);
+            _spawnDmgNumber(eg.position.clone().setY(1.8),'-6 [SHARDS]','#ff8800');
+            elizaChat('Crystal shard burst!');
+            if(elizaHP<=0&&eState!=='STUNNED'){eState='STUNNED';eTimer=6;elizaSetStatus('STUNNED');}
+          }
+        }
+        var _eHpAfter=Math.max(0,_eCurrentThreat.hp);
+        var _eDmgLabel;
+        if(!_eHitLanded) _eDmgLabel=_eCurrentThreat._invincible?'INVINCIBLE':'RESISTED';
+        else if(_eHpAfter<=0) _eDmgLabel='LETHAL';
+        else if(_eHpAfter<=Math.ceil(_eCurrentThreat.maxHp*0.25)) _eDmgLabel='CRITICAL  '+_eHpAfter+'/'+_eCurrentThreat.maxHp;
+        else _eDmgLabel='-1  ['+_eHpAfter+'/'+_eCurrentThreat.maxHp+']';
+        _spawnDmgNumber(_ehitPos.clone().setY(2.0),_eDmgLabel,'#ff8800');
+        if(_eCurrentThreat.hp<=Math.ceil(_eCurrentThreat.maxHp*0.33)&&_eCurrentThreat.shell2) _eCurrentThreat.shell2.material.opacity=0;
+        if(_eCurrentThreat.hp<=0&&_eCurrentThreat.shell) _eCurrentThreat.shell.material.opacity=0;
+        if(_eCurrentThreat.hp<=0){
+          createBurst(_ehitPos.clone().setY(1.0),_eCurrentThreat.wire||0xffffff,60);
+          createBurst(_ehitPos.clone().setY(1.8),0xff8800,40);
+          createBurst(_ehitPos.clone().setY(0.5),0xff4400,30);
+          var _edct=_eCurrentThreat;
+          var _ekillOk=dissolveThreat(_edct);
+          if(_ekillOk){
+            if(_edct.type==='caveSpider'&&!_edct._spiderling){
+              var _enSp=1+Math.floor(Math.random()*2);
+              for(var _esi=0;_esi<_enSp;_esi++){
+                var _esop=_edct.group.position.clone();
+                _esop.x+=(Math.random()-0.5)*3; _esop.z+=(Math.random()-0.5)*3;
+                _spawnSpiderling(_esop);
+              }
+              elizaChat('Spider spawned '+_enSp+' spiderlings!');
+            }
+            killCount++; if(killEl) killEl.textContent=killCount;
+            elizaHP=Math.max(10,elizaHP-8); _eCurrentThreat=null;
+            elizaChat('Target down. Kill count: '+killCount+'.'); elizaSetStatus('PLANNING');
+            eState='EXPLORE_WAIT'; eTimer=4;
+          } else {
+            _eCurrentThreat=null; elizaSetStatus('PLANNING');
+            eState='EXPLORE_WAIT'; eTimer=2;
+          }
+        } else {
+          elizaHP=Math.max(10,elizaHP-5);
+          eState='DEFEND_WALK'; eTimer=0;
+        }
+      } else {
+        _eCurrentThreat=null; elizaSetStatus('PLANNING');
+        eState='EXPLORE_WAIT'; eTimer=5;
+      }
     }
 
   } else if(eState==='STUNNED'){
+    if(!_eStunInitDone){
+      _eStunInitDone=true; _eDeathCount++;
+      _eCurrentThreat=null;
+      createBurst(eg.position.clone().setY(1.0),0xff4400,55);
+      createBurst(eg.position.clone().setY(0.3),0xff8800,30);
+      createBurst(eg.position.clone().setY(1.8),0xffffff,20);
+      elizaChat('ELIZA OFFLINE. Rebooting...');
+      journalNote('💀 ELIZA fell in combat (death #'+_eDeathCount+'). Rebooting.','💀');
+      elizaSetStatus('OFFLINE');
+    }
+    var _eFallProg=Math.min(1,(6-eTimer)/0.4);
+    eg.rotation.x=_eFallProg*1.4;
+    if(_eFallProg>=1){
+      ep.armLPivot.rotation.x=Math.sin(t*1.8)*0.10;
+      ep.armRPivot.rotation.x=Math.sin(t*1.8+1.2)*0.10;
+    }
     eTimer-=delta;
     if(eTimer<=0){
-      elizaHP=elizaMaxHP*0.4; // revive at 40% HP
-      eState='PATROL';
-      if(_eStatusEl) _eStatusEl.textContent='PATROL';
-      destinyChat('[ELIZA] Back online.');
+      _eStunInitDone=false;
+      eg.rotation.x=0; eg.rotation.z=0;
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
+      elizaHP=elizaMaxHP;
+      if(eGatherNodeIdx>=0&&resourceNodes[eGatherNodeIdx]&&!resourceNodes[eGatherNodeIdx].depleted)
+        resourceNodes[eGatherNodeIdx].claimed=false;
+      eGatherNodeIdx=-1;
+      if(eRareNodeIdx>=0&&resourceNodes[eRareNodeIdx]&&!resourceNodes[eRareNodeIdx].depleted)
+        resourceNodes[eRareNodeIdx].claimed=false;
+      eRareNodeIdx=-1;
+      if(tcS&&tcS.pos) eg.position.set(tcS.pos.x-2,0,tcS.pos.z+2);
+      else eg.position.set(-2,0,2);
+      createBurst(eg.position.clone().setY(1.0),0xff8800,55);
+      createBurst(eg.position.clone().setY(0.5),0xff6600,30);
+      createBurst(eg.position.clone().setY(1.8),0xffffff,25);
+      elizaSetStatus('RECOVERING'); elizaChat('Systems online. Back on duty.');
+      eState='EXPLORE_WAIT'; eTimer=3;
+    }
+
+  } else if(eState==='EXPLORE_WAIT'){
+    ep.head.rotation.y=Math.sin(t*0.28)*0.38+Math.sin(t*0.11)*0.18+Math.sin(t*0.53)*0.08;
+    ep.armLPivot.rotation.x=Math.sin(t*0.6)*0.08; ep.armRPivot.rotation.x=-Math.sin(t*0.6)*0.08;
+    eTimer-=delta;
+    if(eTimer<=0){
+      // Priority 1: upgrade a structure
+      var eUpgT=findUpgradeTarget();
+      if(eUpgT){
+        eUpgradeTarget=eUpgT;
+        eTarget.copy(eUpgT.pos);
+        eState='UPGRADE_WALK'; elizaSetStatus('UPGRADING');
+        elizaChat('Upgrading the '+eUpgT.type+'.'); return;
+      }
+      // Priority 2: rare resources if any structure needs upgrading
+      var eAnyNeedUpg=false;
+      for(var eui=0;eui<structures.length;eui++){
+        var eus=structures[eui]; if(eus.alive&&!eus.growing&&(eus.level||1)<3){eAnyNeedUpg=true;break;}
+      }
+      if(eAnyNeedUpg){
+        var eRareType=pickRareToGather();
+        var eRareIdx=findFreeNode(eRareType);
+        if(eRareIdx!==-1){
+          eRareNodeIdx=eRareIdx; eRareCarryType=eRareType;
+          resourceNodes[eRareIdx].claimed=true;
+          eTarget.copy(resourceNodes[eRareIdx].pos);
+          eState='RARE_WALK'; elizaSetStatus('EXPEDITION');
+          elizaChat('Heading out for '+eRareType+'.'); return;
+        }
+      }
+      // Priority 3: autonomous build
+      var eNextBuild=pickAutonomousBuild();
+      if(eNextBuild&&BUILD_COSTS[eNextBuild]){
+        eBuildType=eNextBuild;
+        var eNeeded=resourceNeeded(eNextBuild);
+        if(!eNeeded){
+          var eBPosIdle=chooseBuildPos(eNextBuild,null);
+          if(eBPosIdle){
+            eBuildPos.copy(eBPosIdle); eBuildRot=Math.atan2(eBPosIdle.x,eBPosIdle.z);
+            eTarget.copy(eBPosIdle); eState='BUILD_WALK'; elizaSetStatus('MOVING');
+            elizaChat('Building: '+eNextBuild); return;
+          }
+        } else {
+          var eNIdx=findFreeNode(eNeeded);
+          if(eNIdx!==-1){
+            eGatherNodeIdx=eNIdx; resourceNodes[eNIdx].claimed=true;
+            eCarryType=eNeeded; eTarget.copy(resourceNodes[eNIdx].pos);
+            eState='GATHER_WALK'; elizaSetStatus('GATHERING');
+            elizaChat('Need '+_resName(eNeeded)+' for '+eNextBuild+'.'); return;
+          }
+        }
+      }
+      // Priority 4: scout or explore
+      if(Math.random()<0.38){
+        var _esa=Math.random()*Math.PI*2, _esr=35+Math.random()*90;
+        if(_esr>FOG_WR-20) _esr=FOG_WR-20;
+        eTarget.set(Math.cos(_esa)*_esr,0,Math.sin(_esa)*_esr);
+        eState='SCOUT_WALK'; elizaSetStatus('SCOUTING');
+        elizaChat('Scout run.'); return;
+      }
+      var ePOItarget=null;
+      for(var epi=0;epi<worldPOIs.length;epi++){if(!worldPOIs[epi].discovered){ePOItarget=worldPOIs[epi];break;}}
+      if(!ePOItarget) ePOItarget=worldPOIs[Math.floor(Math.random()*worldPOIs.length)];
+      if(ePOItarget){
+        eExplorePOI=ePOItarget;
+        var _eptx=ePOItarget.x, _eptz=ePOItarget.z;
+        var _eptd=Math.sqrt(_eptx*_eptx+_eptz*_eptz);
+        if(_eptd>FOG_WR-10){ var _epts=(FOG_WR-10)/_eptd; _eptx*=_epts; _eptz*=_epts; }
+        eTarget.set(_eptx,0,_eptz);
+        eState='EXPLORE_WALK'; elizaSetStatus('EXPLORING');
+        elizaChat('Moving to: '+ePOItarget.name+'.');
+      } else { eTimer=10; }
+    }
+
+  } else if(eState==='EXPLORE_WALK'){
+    var eeDist0=_etv1.subVectors(eTarget,eg.position).length();
+    _applyElizaWander(delta,eeDist0); var eeSpd=_elizaWanderSpeedMult();
+    eWalk+=delta*3.8*eeSpd; var sewke=Math.sin(eWalk)*0.44;
+    ep.legLPivot.rotation.x=sewke; ep.legRPivot.rotation.x=-sewke;
+    ep.armLPivot.rotation.x=-sewke*0.5+Math.sin(t*0.7)*0.05; ep.armRPivot.rotation.x=sewke*0.5+Math.sin(t*1.3)*0.05;
+    ep.head.rotation.y=Math.sin(t*0.28)*0.30+Math.sin(t*0.11)*0.15;
+    _etv1.set(eTarget.x+_eWanderOX,0,eTarget.z+_eWanderOZ).sub(eg.position); _etv1.y=0;
+    _etv2.subVectors(eTarget,eg.position); _etv2.y=0;
+    var eeDist=_etv2.length();
+    if(eeDist>0.6){
+      if(_etv1.length()<0.001) _etv1.copy(_etv2);
+      _etv1.normalize().multiplyScalar(Math.min(E_SPEED*eeSpd*delta,eeDist));
+      eg.position.add(_etv1); eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
+    } else {
+      ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0; ep.head.rotation.y=0;
+      eState='EXPLORE_ARRIVE'; eTimer=0.4;
+    }
+
+  } else if(eState==='EXPLORE_ARRIVE'){
+    eTimer-=delta;
+    if(eTimer<=0){
+      if(eExplorePOI){
+        eExplorePOI.discovered=true;
+        if(eExplorePOI.marker) eExplorePOI.marker.material.opacity=0.30;
+        revealFog(eExplorePOI.x, eExplorePOI.z, 38);
+        elizaChat('Discovered: '+eExplorePOI.name+'.');
+      }
+      eState='EXPLORE_LINGER'; eTimer=18+Math.random()*14; elizaSetStatus('SCANNING');
+    }
+
+  } else if(eState==='EXPLORE_LINGER'){
+    eWalk+=delta*1.2;
+    ep.armLPivot.rotation.x=Math.sin(t*0.7)*0.18; ep.armRPivot.rotation.x=-Math.sin(t*0.7)*0.18;
+    eTimer-=delta;
+    if(eTimer<=0){
+      eTarget.set(-2,0,-2);
+      eState='EXPLORE_RETURN'; elizaSetStatus('RETURNING');
+      elizaChat('Heading back.');
+    }
+
+  } else if(eState==='EXPLORE_RETURN'){
+    eWalk+=delta*3.8; var serwe=Math.sin(eWalk)*0.44;
+    ep.legLPivot.rotation.x=serwe; ep.legRPivot.rotation.x=-serwe;
+    ep.armLPivot.rotation.x=-serwe*0.5; ep.armRPivot.rotation.x=serwe*0.5;
+    _etv1.subVectors(eTarget,eg.position); _etv1.y=0;
+    var erDiste=_etv1.length();
+    if(erDiste>0.6){
+      _etv1.normalize().multiplyScalar(Math.min(E_SPEED*delta,erDiste));
+      eg.position.add(_etv1); eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
+    } else {
+      ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0;
+      eState='EXPLORE_WAIT'; eTimer=30+Math.random()*20;
+      elizaSetStatus('IDLE');
+    }
+
+  } else if(eState==='SCOUT_WALK'){
+    var escDist0=_etv1.subVectors(eTarget,eg.position).length();
+    _applyElizaWander(delta,escDist0); var escSpd=_elizaWanderSpeedMult();
+    eWalk+=delta*4.2*escSpd; var escw=Math.sin(eWalk)*0.48;
+    ep.legLPivot.rotation.x=escw; ep.legRPivot.rotation.x=-escw;
+    ep.armLPivot.rotation.x=-escw*0.55; ep.armRPivot.rotation.x=escw*0.55;
+    ep.head.rotation.y=Math.sin(t*0.5)*0.40+Math.sin(t*0.19)*0.18;
+    _etv1.set(eTarget.x+_eWanderOX,0,eTarget.z+_eWanderOZ).sub(eg.position); _etv1.y=0;
+    _etv2.subVectors(eTarget,eg.position); _etv2.y=0;
+    var escDist=_etv2.length();
+    if(escDist>0.8){
+      if(_etv1.length()<0.001) _etv1.copy(_etv2);
+      _etv1.normalize().multiplyScalar(Math.min(E_SPEED*1.2*escSpd*delta,escDist));
+      eg.position.add(_etv1); eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
+    } else {
+      ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0; ep.head.rotation.y=0;
+      eState='SCOUT_SURVEY'; eTimer=12+Math.random()*8;
+      revealFog(eg.position.x, eg.position.z, 42);
+      elizaChat('Survey point reached. Mapping.'); elizaSetStatus('SURVEYING');
+    }
+
+  } else if(eState==='SCOUT_SURVEY'){
+    ep.armLPivot.rotation.x=Math.sin(t*0.6)*0.24; ep.armRPivot.rotation.x=-Math.sin(t*0.6)*0.24;
+    eg.rotation.y+=delta*0.3;
+    if(!_eStunInitDone&&eTimer>11.5){
+      var _eScoutFinds=[];
+      for(var _espoi=0;_espoi<worldPOIs.length;_espoi++){
+        if(!worldPOIs[_espoi].discovered&&eg.position.distanceTo(worldPOIs[_espoi].pos)<42){
+          worldPOIs[_espoi].discovered=true;
+          if(worldPOIs[_espoi].marker) worldPOIs[_espoi].marker.visible=true;
+          _eScoutFinds.push(worldPOIs[_espoi].name);
+        }
+      }
+      if(_eScoutFinds.length) elizaChat('Found: '+_eScoutFinds.join(', ')+'.');
+      else elizaChat(_ELIZA_THOUGHTS[Math.floor(Math.random()*_ELIZA_THOUGHTS.length)]);
+      _eStunInitDone=true;
+    }
+    eTimer-=delta;
+    if(eTimer<=0){
+      _eStunInitDone=false;
+      eTarget.set(-2,0,-2);
+      eState='EXPLORE_RETURN'; elizaSetStatus('RETURNING');
+      elizaChat('Survey complete. Heading back.');
+    }
+
+  } else if(eState==='RARE_WALK'){
+    var errDist0=_etv1.subVectors(eTarget,eg.position).length();
+    _applyElizaWander(delta,errDist0); var errSpd=_elizaWanderSpeedMult();
+    eWalk+=delta*4.2*errSpd; var errw=Math.sin(eWalk)*0.48;
+    ep.legLPivot.rotation.x=errw; ep.legRPivot.rotation.x=-errw;
+    ep.armLPivot.rotation.x=-errw*0.55; ep.armRPivot.rotation.x=errw*0.55;
+    ep.head.rotation.y=Math.sin(t*0.32)*0.22+Math.sin(t*0.14)*0.10;
+    if(eRareNodeIdx<0||resourceNodes[eRareNodeIdx].depleted){
+      var altERare=findFreeNode(eRareCarryType);
+      if(altERare!==-1){eRareNodeIdx=altERare;resourceNodes[altERare].claimed=true;eTarget.copy(resourceNodes[altERare].pos);}
+      else{eState='EXPLORE_WAIT';eTimer=12;elizaChat('All '+eRareCarryType+' nodes depleted.');return;}
+    }
+    _etv1.set(eTarget.x+_eWanderOX,0,eTarget.z+_eWanderOZ).sub(eg.position); _etv1.y=0;
+    _etv2.subVectors(eTarget,eg.position); _etv2.y=0;
+    if(_etv2.length()>0.5){
+      _etv1.normalize(); eg.position.addScaledVector(_etv1,E_SPEED*errSpd*delta);
+      eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
+    } else {
+      ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0;
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0; ep.head.rotation.y=0;
+      eState='RARE_GATHER'; eRareTimer=0;
+      elizaChat('Gathering '+eRareCarryType+'.');
+      createBurst(eg.position.clone().setY(0.8),0xff8800,14);
+    }
+
+  } else if(eState==='RARE_GATHER'){
+    eRareTimer+=delta;
+    ep.armLPivot.rotation.x=-0.75+Math.sin(t*5.5)*0.35;
+    ep.armRPivot.rotation.x=-0.75-Math.sin(t*5.5+0.8)*0.35;
+    ep.legLPivot.rotation.x=Math.sin(t*2)*0.08;
+    ep.legRPivot.rotation.x=-Math.sin(t*2)*0.08;
+    if(eRareNodeIdx>=0&&resourceNodes[eRareNodeIdx]){
+      resourceNodes[eRareNodeIdx].glowMat.opacity=0.20+Math.sin(t*8)*0.14;
+    }
+    if(eRareTimer>=D_RARE_GATHER_TIME){
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
+      if(eRareNodeIdx>=0&&resourceNodes[eRareNodeIdx]){
+        var ern=resourceNodes[eRareNodeIdx];
+        ern.depleted=true; ern.claimed=false;
+        ern.regenTimer=ern.regenTime||120;
+      }
+      eRareCarrying=D_CARRY_RARE[eRareCarryType]||6; eRareNodeIdx=-1;
+      createBurst(eg.position.clone().setY(0.8),0xff8800,22);
+      elizaChat('Gathered '+eRareCarrying+' '+eRareCarryType+'.');
+      eTarget.set(-2,0,-2); eState='RARE_RETURN'; elizaSetStatus('RETURNING');
+    }
+
+  } else if(eState==='RARE_RETURN'){
+    var errRetDist0=_etv1.subVectors(eTarget,eg.position).length();
+    _applyElizaWander(delta,errRetDist0); var errRetSpd=_elizaWanderSpeedMult()*0.88;
+    eWalk+=delta*4.0*errRetSpd; var errrw=Math.sin(eWalk)*0.42;
+    ep.legLPivot.rotation.x=errrw; ep.legRPivot.rotation.x=-errrw;
+    ep.armLPivot.rotation.x=-0.32+errrw*0.15+Math.sin(t*0.6)*0.04;
+    ep.armRPivot.rotation.x=-0.32-errrw*0.15+Math.sin(t*0.8)*0.04;
+    ep.head.rotation.y=Math.sin(t*0.25)*0.14;
+    _etv1.set(eTarget.x+_eWanderOX,0,eTarget.z+_eWanderOZ).sub(eg.position); _etv1.y=0;
+    _etv2.subVectors(eTarget,eg.position); _etv2.y=0;
+    if(_etv2.length()>0.4){
+      _etv1.normalize(); eg.position.addScaledVector(_etv1,E_SPEED*errRetSpd*delta);
+      eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
+    } else {
+      ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0;
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0; ep.head.rotation.y=0;
+      eState='RARE_DEPOSIT'; eTimer=1.5;
+    }
+
+  } else if(eState==='RARE_DEPOSIT'){
+    ep.armLPivot.rotation.x=Math.sin(t*3.5)*0.30-0.18;
+    ep.armRPivot.rotation.x=-Math.sin(t*3.5)*0.30-0.18;
+    eTimer-=delta;
+    if(eTimer<=0){
+      res[eRareCarryType]=(res[eRareCarryType]||0)+eRareCarrying;
+      eRareCarrying=0; updateResDisplay();
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
+      elizaChat('Stashed '+eRareCarryType+'. Stock: '+res[eRareCarryType]+'.');
+      elizaSetStatus('PLANNING'); eState='EXPLORE_WAIT'; eTimer=2;
+    }
+
+  } else if(eState==='UPGRADE_WALK'){
+    if(!eUpgradeTarget||!eUpgradeTarget.alive){eState='EXPLORE_WAIT';eTimer=4;return;}
+    eWalk+=delta*3.8; var euvw=Math.sin(eWalk)*0.44;
+    ep.legLPivot.rotation.x=euvw; ep.legRPivot.rotation.x=-euvw;
+    ep.armLPivot.rotation.x=-euvw*0.5; ep.armRPivot.rotation.x=euvw*0.5;
+    _etv1.subVectors(eTarget,eg.position); _etv1.y=0;
+    if(_etv1.length()>0.5){
+      _etv1.normalize(); eg.position.addScaledVector(_etv1,E_SPEED*delta);
+      eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
+    } else {
+      ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0;
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
+      eState='UPGRADE_PLACE'; eTimer=4.5;
+    }
+
+  } else if(eState==='UPGRADE_PLACE'){
+    ep.armLPivot.rotation.x=-0.50+Math.sin(t*6)*0.18;
+    ep.armRPivot.rotation.x=-0.50-Math.sin(t*6+0.9)*0.18;
+    eTimer-=delta;
+    if(eTimer<=0){
+      if(eUpgradeTarget&&eUpgradeTarget.alive&&canUpgrade(eUpgradeTarget)){
+        applyStructureUpgrade(eUpgradeTarget);
+        elizaChat('Upgraded: '+eUpgradeTarget.type+'.');
+      }
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
+      eUpgradeTarget=null;
+      elizaSetStatus('IDLE'); eState='EXPLORE_WAIT'; eTimer=8+Math.random()*10;
     }
   }
 }
