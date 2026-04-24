@@ -10128,6 +10128,7 @@ var dGroup=null, dParts=null;
 var _tv1=new THREE.Vector3(), _tv2=new THREE.Vector3(); // reusable per-frame scratch vectors
 var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=0.5;
 var _introActive=false; // true during new-game intro — freezes game logic
+var _agentName='DESTINY-1'; // player-chosen agent name
 var dSeqIdx=0, dBuildType=BUILD_SEQUENCE[0], dBuildPos=new THREE.Vector3(), dBuildRot=0;
 var dCurrentThreat=null;
 var dArtPos=new THREE.Vector3(), dArtPick='';     // art walk destination + type
@@ -10151,7 +10152,7 @@ var dHpBar=document.getElementById('d-hp-bar'), dHpVal=document.getElementById('
 var chatLogEl=document.getElementById('chat-log');
 
 function setStatus(s){
-  if(dLineEl) dLineEl.textContent='DESTINY-1: '+s;
+  if(dLineEl) dLineEl.textContent=_agentName+': '+s;
   if(dStatusEl) dStatusEl.textContent=s;
   if(dResStatusEl) dResStatusEl.textContent=s;
 }
@@ -10255,7 +10256,7 @@ function destinyChat(msg){
   // Strip [D1] prefix for display — clean output
   var displayMsg = msg ? msg.replace(/^\[D1\]\s*/,'') : msg;
   var line=document.createElement('div'); line.className='chat-line';
-  line.innerHTML='<span class="chat-ts">['+ts+']</span><span class="chat-name">DESTINY-1:</span><span class="chat-msg"> '+displayMsg+'</span>';
+  line.innerHTML='<span class="chat-ts">['+ts+']</span><span class="chat-name">'+_agentName+':</span><span class="chat-msg"> '+displayMsg+'</span>';
   chatLogEl.appendChild(line); chatLogEl.scrollTop=chatLogEl.scrollHeight;
   while(chatLogEl.children.length>45) chatLogEl.removeChild(chatLogEl.firstChild);
   if(msg && msg.indexOf('[D1]')===0){
@@ -10365,51 +10366,141 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
 (function(){
   var _saveExists=false;
   try{_saveExists=!!localStorage.getItem('td_dream_v1');}catch(e){}
-  if(_saveExists) return; // returning player — skip intro
-  // freeze game until sequences finish
+  if(_saveExists) return;
   _introActive=true;
   dTimer=999;
   if(_MOBILE){
-    // Mobile already shows the warning overlay — that acts as the new-game gate.
-    // Just hold briefly for init then release so game starts when warning is dismissed.
     setTimeout(function(){ _introActive=false; dTimer=0.5; },800);
     return;
   }
-  // Desktop: overlay starts transparent so boot shows through, then fades to black
-  // in sync with boot fading out — seamless crossfade, no gap, no block.
+
   var _smol=window.innerWidth<900;
+
+  // Black overlay — starts transparent, crossfades in with boot
   var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;opacity:0;z-index:998;pointer-events:all;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:'+(_smol?'10px':'14px')+';font-family:"Courier New",monospace;';
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;opacity:0;z-index:998;pointer-events:all;font-family:"Courier New",monospace;';
   document.body.appendChild(ov);
-  // Cross-fade in as boot starts fading (boot fades at 4000ms, 1s transition)
   setTimeout(function(){ ov.style.transition='opacity 1.2s'; ov.style.opacity='1'; },3800);
-  var _lines=[
-    {t:5500,  txt:'[ SIGNAL DETECTED ]',          col:'#00ff41', sz:_smol?'11px':'13px'},
-    {t:6200,  txt:'DEPLOYING  DESTINY-1',          col:'#44ffaa', sz:_smol?'18px':'22px'},
-    {t:7200,  txt:'DESTINATION: UNCHARTED SECTOR', col:'#aaffcc', sz:_smol?'10px':'12px'},
-    {t:8400,  txt:'WARNING — TERRITORY OCCUPIED',  col:'#ff8800', sz:_smol?'11px':'14px'},
-    {t:9600,  txt:'MISSION: CLAIM IT. SURVIVE.',   col:'#ffffff', sz:_smol?'11px':'14px'},
-  ];
-  var _ls=_smol?'2px':'4px';
-  _lines.forEach(function(l){
+
+  // ── Agent creation panel (shown after boot fades) ─────────────────
+  var panel=document.createElement('div');
+  panel.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:18px;opacity:0;transition:opacity 0.8s;';
+  ov.appendChild(panel);
+
+  // Header
+  var hdr=document.createElement('div');
+  hdr.style.cssText='color:#00ff41;font-size:'+(_smol?'10px':'12px')+';letter-spacing:5px;text-transform:uppercase;text-align:center;margin-bottom:4px;';
+  hdr.textContent='// AGENT INITIALIZATION //';
+  panel.appendChild(hdr);
+
+  var title=document.createElement('div');
+  title.style.cssText='color:#44ffaa;font-size:'+(_smol?'20px':'28px')+';letter-spacing:3px;text-transform:uppercase;text-align:center;margin-bottom:8px;';
+  title.textContent='CREATE YOUR AGENT';
+  panel.appendChild(title);
+
+  // Name input
+  var inputWrap=document.createElement('div');
+  inputWrap.style.cssText='display:flex;align-items:center;border:1px solid #00ff4166;padding:8px 14px;gap:8px;width:'+(_smol?'240px':'320px')+';box-sizing:border-box;';
+  var inputPfx=document.createElement('span');
+  inputPfx.style.cssText='color:#00ff4188;font-size:13px;letter-spacing:2px;white-space:nowrap;';
+  inputPfx.textContent='AGENT >';
+  var inp=document.createElement('input');
+  inp.type='text';
+  inp.maxLength=16;
+  inp.placeholder='DESTINY-1';
+  inp.style.cssText='background:transparent;border:none;outline:none;color:#00ff41;font-family:"Courier New",monospace;font-size:'+(_smol?'14px':'16px')+';letter-spacing:3px;text-transform:uppercase;width:100%;caret-color:#00ff41;';
+  inputWrap.appendChild(inputPfx); inputWrap.appendChild(inp);
+  panel.appendChild(inputWrap);
+
+  // Buttons
+  function _mkBtn(label,col,disabled){
+    var b=document.createElement('button');
+    b.textContent=label;
+    b.disabled=disabled||false;
+    b.style.cssText='background:transparent;border:1px solid '+(disabled?'#ffffff22':col+'66')+';color:'+(disabled?'#ffffff33':col)+';font-family:"Courier New",monospace;font-size:'+(_smol?'9px':'11px')+';letter-spacing:3px;padding:11px 28px;cursor:'+(disabled?'default':'pointer')+';text-transform:uppercase;width:'+(_smol?'240px':'320px')+';transition:background 0.2s;';
+    if(!disabled){
+      b.onmouseenter=function(){b.style.background=col+'18';};
+      b.onmouseleave=function(){b.style.background='transparent';};
+    }
+    return b;
+  }
+
+  var btnCreate=_mkBtn('CREATE AGENT','#00ff41');
+  var btnDestiny=_mkBtn('PLAY AS DESTINY-1','#00bef0');
+  var btnSecond=_mkBtn('ADD 2ND AGENT  —  COMING SOON','#ffffff',true);
+
+  // Tooltip on disabled button
+  var tip=document.createElement('div');
+  tip.style.cssText='color:#ffffff22;font-size:9px;letter-spacing:2px;text-align:center;margin-top:-10px;';
+  tip.textContent='MULTI-AGENT SUPPORT — FUTURE UPDATE';
+
+  panel.appendChild(btnCreate);
+  panel.appendChild(btnDestiny);
+  panel.appendChild(btnSecond);
+  panel.appendChild(tip);
+
+  // Apply name and proceed to story sequence
+  function _applyName(name){
+    _agentName=(name||'DESTINY-1').trim().toUpperCase()||'DESTINY-1';
+    // Update static HUD elements
+    var hudName=document.getElementById('hud-agent-name');
+    if(hudName) hudName.textContent='◈ '+_agentName;
+    var nameplate=document.getElementById('destiny-nameplate');
+    if(nameplate) nameplate.textContent=_agentName;
+  }
+
+  function _proceed(name){
+    _applyName(name);
+    // Fade out panel, then run story lines
+    panel.style.opacity='0';
     setTimeout(function(){
-      var el=document.createElement('div');
-      el.style.cssText='color:'+l.col+';font-size:'+l.sz+';letter-spacing:'+_ls+';opacity:0;text-shadow:0 0 20px currentColor;transition:opacity 0.7s;text-transform:uppercase;text-align:center;padding:0 16px;';
-      el.textContent=l.txt;
-      ov.appendChild(el);
-      setTimeout(function(){el.style.opacity='1';},30);
-    },l.t);
-  });
-  // Fade out at 9600 + ~1800ms linger = 11400ms from page load
+      panel.style.display='none';
+      _runStory();
+    },700);
+  }
+
+  btnCreate.onclick=function(){ _proceed(inp.value); };
+  btnDestiny.onclick=function(){ _proceed('DESTINY-1'); };
+  inp.onkeydown=function(e){ if(e.key==='Enter') _proceed(inp.value); };
+
+  // Show panel after boot finishes
   setTimeout(function(){
-    ov.style.transition='opacity 1.4s';
-    ov.style.opacity='0';
+    panel.style.opacity='1';
+    setTimeout(function(){ inp.focus(); },200);
+  },5400);
+
+  // Story sequence — runs after name is chosen
+  function _runStory(){
+    var _lines=[
+      {t:200,  txt:'[ SIGNAL DETECTED ]',                col:'#00ff41', sz:_smol?'11px':'13px'},
+      {t:900,  txt:'DEPLOYING  '+_agentName,             col:'#44ffaa', sz:_smol?'18px':'22px'},
+      {t:1900, txt:'DESTINATION: UNCHARTED SECTOR',      col:'#aaffcc', sz:_smol?'10px':'12px'},
+      {t:3100, txt:'WARNING — TERRITORY OCCUPIED',       col:'#ff8800', sz:_smol?'11px':'14px'},
+      {t:4300, txt:'MISSION: CLAIM IT. SURVIVE.',        col:'#ffffff', sz:_smol?'11px':'14px'},
+    ];
+    var _ls=_smol?'2px':'4px';
+    var storyWrap=document.createElement('div');
+    storyWrap.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:'+(_smol?'10px':'14px')+';';
+    ov.appendChild(storyWrap);
+    _lines.forEach(function(l){
+      setTimeout(function(){
+        var el=document.createElement('div');
+        el.style.cssText='color:'+l.col+';font-size:'+l.sz+';letter-spacing:'+_ls+';opacity:0;text-shadow:0 0 20px currentColor;transition:opacity 0.7s;text-transform:uppercase;text-align:center;padding:0 16px;';
+        el.textContent=l.txt;
+        storyWrap.appendChild(el);
+        setTimeout(function(){el.style.opacity='1';},30);
+      },l.t);
+    });
     setTimeout(function(){
-      if(ov.parentNode) ov.parentNode.removeChild(ov);
-      _introActive=false; // unfreeze — game starts now
-      dTimer=0.5;
-    },1500);
-  },11400);
+      ov.style.transition='opacity 1.4s';
+      ov.style.opacity='0';
+      setTimeout(function(){
+        if(ov.parentNode) ov.parentNode.removeChild(ov);
+        _introActive=false;
+        dTimer=0.5;
+      },1500);
+    },5800);
+  }
 })();
 
 
@@ -11039,7 +11130,7 @@ function updateDestiny(delta, t) {
       createBurst(dGroup.position.clone().setY(1.0),0xff0000,55);
       createBurst(dGroup.position.clone().setY(0.3),0xff6600,30);
       createBurst(dGroup.position.clone().setY(1.8),0xffffff,20);
-      destinyChat('DESTINY-1 OFFLINE. Rebooting...');
+      destinyChat(_agentName+' OFFLINE. Rebooting...');
       journalNote('💀 Fell in combat (death #'+_deathCount+'). Rebooting at base.','💀');
       setStatus('OFFLINE');
       // CSS transition for overlay — one write, no per-frame updates
