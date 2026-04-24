@@ -9977,6 +9977,16 @@ function updateThreats(delta, t) {
     // ── Patrol/Alert/Attack/Return state machine ──────────────────────
     var dPos=dGroup?dGroup.position.clone().setY(0):null;
     var dDist=dPos?th.group.position.distanceTo(dPos):Infinity;
+    // Pick nearest alive agent as the primary target for this threat
+    var _elizaAlive=elizaGroup&&_hasEliza&&eState!=='STUNNED';
+    var _elizaPos=_elizaAlive?elizaGroup.position.clone().setY(0):null;
+    var _elizaDist=_elizaPos?th.group.position.distanceTo(_elizaPos):Infinity;
+    // tPos / tDist = the target agent position and distance
+    var tPos, tDist, _targetIsEliza;
+    if(dPos&&_elizaPos){ if(_elizaDist<dDist){ tPos=_elizaPos; tDist=_elizaDist; _targetIsEliza=true; } else { tPos=dPos; tDist=dDist; _targetIsEliza=false; } }
+    else if(_elizaPos){ tPos=_elizaPos; tDist=_elizaDist; _targetIsEliza=true; }
+    else if(dPos){ tPos=dPos; tDist=dDist; _targetIsEliza=false; }
+    else { tPos=null; tDist=Infinity; _targetIsEliza=false; }
 
     if(th.nState==='PATROL'){
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.5;
@@ -9984,16 +9994,14 @@ function updateThreats(delta, t) {
         var _pa=Math.random()*Math.PI*2, _pr=1.5+Math.random()*3.5;
         th.patrolTarget=new THREE.Vector3(th.homePos.x+Math.cos(_pa)*_pr,0,th.homePos.z+Math.sin(_pa)*_pr);
       }
-      // MGS-style two-tier detection
-      if(dPos&&dDist<th.alertRange*0.72){
-        // Seen clearly at close range — full alert
+      // MGS-style two-tier detection — checks both agents, reacts to nearest
+      if(tPos&&tDist<th.alertRange*0.72){
         th.nState='ALERT';
         createBurst(th.group.position.clone().setY(2.2),0xff2200,7);
-      } else if(dPos&&dDist<th.alertRange*1.35){
-        // Suspicious at medium range — investigate
+      } else if(tPos&&tDist<th.alertRange*1.35){
         th.nState='CURIOUS';
         if(!th._lastKnownPos) th._lastKnownPos=new THREE.Vector3();
-        th._lastKnownPos.copy(dPos);
+        th._lastKnownPos.copy(tPos);
         createBurst(th.group.position.clone().setY(2.2),0xffee00,4);
       }
       _tv1.subVectors(th.patrolTarget,th.group.position); _tv1.y=0;
@@ -10005,19 +10013,15 @@ function updateThreats(delta, t) {
       }
 
     } else if(th.nState==='CURIOUS'){
-      // ── Suspicious — cautious walk toward last known position ──────────
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.5;
       th.group.rotation.x=0.10;
-      if(!dPos){ th.nState='PATROL'; th.group.rotation.x=0; }
-      else if(dDist<th.alertRange*0.72){
-        // Got close enough — confirmed hostile
+      if(!tPos){ th.nState='PATROL'; th.group.rotation.x=0; }
+      else if(tDist<th.alertRange*0.72){
         th.nState='ALERT'; th.group.rotation.x=0;
         createBurst(th.group.position.clone().setY(2.2),0xff2200,9);
         _d1Say('Incoming. Engaging.','chat',{lastEvent:'enemy spotted: '+th.type,question:'Short combat callout.'});
       } else {
-        // Keep updating last known pos while still in sight
-        if(dDist<th.alertRange*1.4) th._lastKnownPos.copy(dPos);
-        // Walk cautiously toward investigation point
+        if(tDist<th.alertRange*1.4) th._lastKnownPos.copy(tPos);
         _tv1.subVectors(th._lastKnownPos,th.group.position); _tv1.y=0;
         if(_tv1.length()>0.8){
           _tv1.normalize();
@@ -10025,19 +10029,17 @@ function updateThreats(delta, t) {
           th.group.position.addScaledVector(_tv1,THREAT_SPEED*th.speedMult*0.48*delta);
           th.pos.copy(th.group.position);
         } else {
-          // Reached point, found nothing — brief search then stand down
           th.nState='SEARCH'; th._searchTimer=3.5+Math.random()*2.5;
           createBurst(th.group.position.clone().setY(2.0),0xffaa00,4);
         }
       }
 
     } else if(th.nState==='SEARCH'){
-      // ── Searching last known position — slow pan, watchful ────────────
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.3;
       th.group.rotation.y+=delta*(Math.sin(th.walkPhase*0.35)>0?0.85:-0.85);
       if(!th._searchTimer) th._searchTimer=3;
       th._searchTimer-=delta;
-      if(dPos&&dDist<th.alertRange*0.72){
+      if(tPos&&tDist<th.alertRange*0.72){
         th.nState='ALERT';
         createBurst(th.group.position.clone().setY(2.2),0xff2200,9);
       } else if(th._searchTimer<=0){
@@ -10045,92 +10047,101 @@ function updateThreats(delta, t) {
       }
 
     } else if(th.nState==='ALERT'){
-      // Full charge — body slams forward, weapon raised
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH;
-      th.group.rotation.x=0.22; // aggressive forward lean
-      if(!dPos){ th.nState='RETURN'; th.group.rotation.x=0; }
-      else if(dDist<1.6){ th.nState='ATTACK'; th.atkCooldown=th.atkRate*0.2; th.group.rotation.x=0; }
-      else if(dDist>th.alertRange*2.5){
-        // Lost sight — search last known position before giving up
+      th.group.rotation.x=0.22;
+      if(!tPos){ th.nState='RETURN'; th.group.rotation.x=0; }
+      else if(tDist<1.6){ th.nState='ATTACK'; th.atkCooldown=th.atkRate*0.2; th.group.rotation.x=0; }
+      else if(tDist>th.alertRange*2.5){
         th.nState='SEARCH'; th._searchTimer=4+Math.random()*3;
         if(!th._lastKnownPos) th._lastKnownPos=new THREE.Vector3();
-        if(dPos) th._lastKnownPos.copy(dPos);
+        th._lastKnownPos.copy(tPos);
         th.group.rotation.x=0;
         createBurst(th.group.position.clone().setY(2.0),0xffaa00,5);
       } else {
-        _tv1.subVectors(dPos,th.group.position); _tv1.y=0; _tv1.normalize();
+        _tv1.subVectors(tPos,th.group.position); _tv1.y=0; _tv1.normalize();
         th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);
-        if(th.weapon) th.weapon.rotation.x=-0.8; // weapon points at target
-        // Track last known while chasing
+        if(th.weapon) th.weapon.rotation.x=-0.8;
         if(!th._lastKnownPos) th._lastKnownPos=new THREE.Vector3();
-        th._lastKnownPos.copy(dPos);
-        // Erratic weave — harder to dodge
+        th._lastKnownPos.copy(tPos);
         _tv2.set(-_tv1.z,0,_tv1.x);
-        var chargeSpd=THREAT_SPEED*th.speedMult*1.15; // 15% faster charge
+        var chargeSpd=THREAT_SPEED*th.speedMult*1.15;
         th.group.position.addScaledVector(_tv1,chargeSpd*delta);
         th.group.position.addScaledVector(_tv2,Math.sin(t*4.5+th.wobble)*0.18*delta);
         th.pos.copy(th.group.position);
-        // Destiny auto-engages when enemy charges — interrupts any non-combat state
-        if(dGroup&&dState!=='DEFEND_WALK'&&dState!=='DEFEND_ATTACK'&&dState!=='STUNNED'&&dDist<th.alertRange*1.2){
-          // Release any claimed resource node before switching to combat
-          if(dGatherNodeIdx>=0&&resourceNodes[dGatherNodeIdx]&&!resourceNodes[dGatherNodeIdx].depleted)
-            resourceNodes[dGatherNodeIdx].claimed=false;
+        // Auto-engage: interrupt whichever agent is being charged
+        if(!_targetIsEliza&&dGroup&&dState!=='DEFEND_WALK'&&dState!=='DEFEND_ATTACK'&&dState!=='STUNNED'&&tDist<th.alertRange*1.2){
+          if(dGatherNodeIdx>=0&&resourceNodes[dGatherNodeIdx]&&!resourceNodes[dGatherNodeIdx].depleted) resourceNodes[dGatherNodeIdx].claimed=false;
           dGatherNodeIdx=-1;
-          if(dRareNodeIdx>=0&&resourceNodes[dRareNodeIdx]&&!resourceNodes[dRareNodeIdx].depleted)
-            resourceNodes[dRareNodeIdx].claimed=false;
+          if(dRareNodeIdx>=0&&resourceNodes[dRareNodeIdx]&&!resourceNodes[dRareNodeIdx].depleted) resourceNodes[dRareNodeIdx].claimed=false;
           dRareNodeIdx=-1;
           dCurrentThreat=th; dState='DEFEND_WALK'; setStatus('DEFENDING');
           _spawnDecisionRipple(0xff2200);
           _d1Say('Incoming. Engaging.','chat',{lastEvent:'enemy charging: '+th.type,question:'Short combat callout.'});
         }
+        if(_targetIsEliza&&elizaGroup&&eState!=='DEFEND_WALK'&&eState!=='DEFEND_ATTACK'&&eState!=='STUNNED'&&tDist<th.alertRange*1.2){
+          if(eGatherNodeIdx>=0&&resourceNodes[eGatherNodeIdx]&&!resourceNodes[eGatherNodeIdx].depleted) resourceNodes[eGatherNodeIdx].claimed=false;
+          eGatherNodeIdx=-1;
+          if(eRareNodeIdx>=0&&resourceNodes[eRareNodeIdx]&&!resourceNodes[eRareNodeIdx].depleted) resourceNodes[eRareNodeIdx].claimed=false;
+          eRareNodeIdx=-1;
+          _eCurrentThreat=th; eState='DEFEND_WALK'; elizaSetStatus('DEFENDING');
+        }
       }
 
     } else if(th.nState==='ATTACK'){
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*1.5;
-      th.group.rotation.x=0.08; // slight lean during melee
-      if(dPos){_tv1.subVectors(dPos,th.group.position);_tv1.y=0;if(_tv1.length()>0.1)th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);}
-      // Frantic weapon strike animation
+      th.group.rotation.x=0.08;
+      if(tPos){_tv1.subVectors(tPos,th.group.position);_tv1.y=0;if(_tv1.length()>0.1)th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);}
       if(th.weapon){
         th.weapon.rotation.z=Math.sin(th.walkPhase*5)*1.1;
         th.weapon.rotation.x=-0.6+Math.sin(th.walkPhase*4)*0.6;
       }
-      // Ring pulses angry red
       if(th.gRing) th.gRing.material.color.setHex(Math.sin(t*10)>0?0xff1100:0xff5500);
-      // Chase Destiny if she moves away mid-fight
-      if(dPos&&dDist>1.8&&dDist<5.0){
-        _tv1.subVectors(dPos,th.group.position);_tv1.y=0;_tv1.normalize();
+      if(tPos&&tDist>1.8&&tDist<5.0){
+        _tv1.subVectors(tPos,th.group.position);_tv1.y=0;_tv1.normalize();
         th.group.position.addScaledVector(_tv1,THREAT_SPEED*th.speedMult*0.75*delta);
         th.pos.copy(th.group.position);
       }
-      if(!dPos||dDist>5.5){th.nState='ALERT';if(th.gRing)th.gRing.material.color.setHex(0xffffff);}
-      // Deal damage to Destiny
+      if(!tPos||tDist>5.5){th.nState='ALERT';if(th.gRing)th.gRing.material.color.setHex(0xffffff);}
       th.atkCooldown-=delta;
-      if(th.atkCooldown<=0&&dGroup&&dDist<3.2&&dState!=='STUNNED'){
+      if(th.atkCooldown<=0&&tPos&&tDist<3.2){
         th.atkCooldown=th.atkRate;
-        destinyHP=Math.max(0,destinyHP-th.atkDmg);
-        createBurst(dGroup.position.clone().setY(1.0),0xff0000,16);
-        _spawnDmgNumber(dGroup.position.clone().setY(1.8),'-'+th.atkDmg);
-        triggerHitFlash('rgba(255,0,0,0.22)'); // screen flash on hit
-        // Destiny always fights back — interrupt any state except already fighting/stunned
-        if(dState!=='DEFEND_WALK'&&dState!=='DEFEND_ATTACK'&&dState!=='STUNNED'){
-          if(dGatherNodeIdx>=0&&resourceNodes[dGatherNodeIdx]&&!resourceNodes[dGatherNodeIdx].depleted)
-            resourceNodes[dGatherNodeIdx].claimed=false;
-          dGatherNodeIdx=-1;
-          if(dRareNodeIdx>=0&&resourceNodes[dRareNodeIdx]&&!resourceNodes[dRareNodeIdx].depleted)
-            resourceNodes[dRareNodeIdx].claimed=false;
-          dRareNodeIdx=-1;
-          dCurrentThreat=th; dState='DEFEND_WALK'; setStatus('DEFENDING');
-          _d1Say('Taking damage. Fighting back.','chat',{lastEvent:'hit by '+th.type,question:'Short pain/combat reaction.'});
+        if(!_targetIsEliza&&dGroup&&dState!=='STUNNED'){
+          // Hit DESTINY
+          destinyHP=Math.max(0,destinyHP-th.atkDmg);
+          createBurst(dGroup.position.clone().setY(1.0),0xff0000,16);
+          _spawnDmgNumber(dGroup.position.clone().setY(1.8),'-'+th.atkDmg);
+          triggerHitFlash('rgba(255,0,0,0.22)');
+          if(dState!=='DEFEND_WALK'&&dState!=='DEFEND_ATTACK'){
+            if(dGatherNodeIdx>=0&&resourceNodes[dGatherNodeIdx]&&!resourceNodes[dGatherNodeIdx].depleted) resourceNodes[dGatherNodeIdx].claimed=false;
+            dGatherNodeIdx=-1;
+            if(dRareNodeIdx>=0&&resourceNodes[dRareNodeIdx]&&!resourceNodes[dRareNodeIdx].depleted) resourceNodes[dRareNodeIdx].claimed=false;
+            dRareNodeIdx=-1;
+            dCurrentThreat=th; dState='DEFEND_WALK'; setStatus('DEFENDING');
+            _d1Say('Taking damage. Fighting back.','chat',{lastEvent:'hit by '+th.type,question:'Short pain/combat reaction.'});
+          }
+          if(destinyHP<=0&&dState!=='STUNNED'){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
         }
-        if(destinyHP<=0&&dState!=='STUNNED'){dState='STUNNED';dTimer=6;setStatus('STUNNED');}
+        if(_targetIsEliza&&elizaGroup&&eState!=='STUNNED'){
+          // Hit ELIZA
+          elizaHP=Math.max(0,elizaHP-th.atkDmg);
+          createBurst(elizaGroup.position.clone().setY(1.0),0xff4400,16);
+          _spawnDmgNumber(elizaGroup.position.clone().setY(1.8),'-'+th.atkDmg,'#ff8800');
+          if(eState!=='DEFEND_WALK'&&eState!=='DEFEND_ATTACK'){
+            if(eGatherNodeIdx>=0&&resourceNodes[eGatherNodeIdx]&&!resourceNodes[eGatherNodeIdx].depleted) resourceNodes[eGatherNodeIdx].claimed=false;
+            eGatherNodeIdx=-1;
+            if(eRareNodeIdx>=0&&resourceNodes[eRareNodeIdx]&&!resourceNodes[eRareNodeIdx].depleted) resourceNodes[eRareNodeIdx].claimed=false;
+            eRareNodeIdx=-1;
+            _eCurrentThreat=th; eState='DEFEND_WALK'; elizaSetStatus('DEFENDING');
+          }
+          if(elizaHP<=0&&eState!=='STUNNED'){eState='STUNNED';eTimer=6;elizaSetStatus('STUNNED');}
+        }
       }
 
     } else if(th.nState==='RETURN'){
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.5;
-      // Re-alert if Destiny comes close during return
-      if(dPos&&dDist<th.alertRange*0.72){ th.nState='ALERT'; }
-      else if(dPos&&dDist<th.alertRange){ th.nState='CURIOUS'; if(!th._lastKnownPos)th._lastKnownPos=new THREE.Vector3(); th._lastKnownPos.copy(dPos); }
-      th.group.rotation.x=0; // reset lean
+      if(tPos&&tDist<th.alertRange*0.72){ th.nState='ALERT'; }
+      else if(tPos&&tDist<th.alertRange){ th.nState='CURIOUS'; if(!th._lastKnownPos)th._lastKnownPos=new THREE.Vector3(); th._lastKnownPos.copy(tPos); }
+      th.group.rotation.x=0;
       if(th.weapon){th.weapon.rotation.x=0;th.weapon.rotation.z=0;}
       if(th.gRing) th.gRing.material.color.setHex(th.glowMat.color?th.glowMat.color.getHex():0xffffff);
       _tv1.subVectors(th.homePos,th.group.position); _tv1.y=0;
@@ -10495,13 +10506,6 @@ var _ELIZA_THOUGHTS=[
 ];
 
 function elizaChat(msg){
-  if(!chatLogEl) return;
-  var now=new Date();
-  var ts=('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
-  var line=document.createElement('div'); line.className='chat-line';
-  line.innerHTML='<span class="chat-ts">['+ts+']</span><span class="chat-name" style="color:#ff8800">ELIZA:</span><span class="chat-msg"> '+msg+'</span>';
-  chatLogEl.appendChild(line); chatLogEl.scrollTop=chatLogEl.scrollHeight;
-  while(chatLogEl.children.length>45) chatLogEl.removeChild(chatLogEl.firstChild);
   _spawnThoughtBubble(msg, elizaGroup);
 }
 function elizaSetStatus(s){
@@ -11280,11 +11284,11 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
     return {el:card, setSelected:_setSelected, isSelected:function(){return selected;}};
   }
 
-  var cardD=_mkCard('DESTINY','BUILDER · DEFENDER',
-    ['Constructs the fortress','Gathers resources','Surveys & plans'],
+  var cardD=_mkCard('DESTINY','AUTONOMOUS AGENT',
+    ['Builds, gathers & defends','Explores the world','AI-driven decisions'],
     '#00bef0', true);
-  var cardE=_mkCard('ELIZA','HUNTER · SCOUT',
-    ['Patrols the perimeter','Engages threats','Protects the base'],
+  var cardE=_mkCard('ELIZA','AUTONOMOUS AGENT',
+    ['Builds, gathers & defends','Explores the world','AI-driven decisions'],
     '#ff8800', false);
 
   cardRow.appendChild(cardD.el);
