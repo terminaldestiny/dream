@@ -473,6 +473,7 @@
   <div class="mini-bar-bg"><div class="mini-bar-fill bar-green" id="d-hp-bar" style="width:100%"></div></div>
   <div class="hud-val-row"><span id="d-hp-val">100</span> / 100</div>
   <div id="unit-status-label">SPAWNING</div>
+  <div id="ai-offline-label" style="display:none;font-size:8px;color:#ff220099;letter-spacing:2px;margin-top:2px;">AI OFFLINE</div>
   <div id="hud-tc-block">
     <div class="hud-tc-label">TOWN CENTER</div>
     <div class="mini-bar-bg"><div class="mini-bar-fill bar-gold" id="tc-hp-bar" style="width:100%"></div></div>
@@ -7953,8 +7954,8 @@ function _d1Think(hook, extra, cb) {
 // Say something — AI when online, fallback when offline
 // Pre-checks debounce before firing the API call (saves tokens + prevents queue flooding)
 function _d1Say(fallback, hook, extra) {
-  if(!_D1_ONLINE) { destinyChat(fallback); return; }
-  if(Date.now() - _D1_LAST_CHAT_MS < _D1_CHAT_GAP_MS) return; // within gap — skip entirely
+  if(!_D1_ONLINE) return; // silent when offline — no scripted fallback
+  if(Date.now() - _D1_LAST_CHAT_MS < _D1_CHAT_GAP_MS) return;
   _d1Think(hook||'chat', extra||{}, function(resp){
     if(resp) destinyChat('[D1] '+resp);
   });
@@ -8030,7 +8031,7 @@ function _d1PrefetchAction() {
         else if(m.indexOf('artistic')>=0) destinyMind.mood='artistic';
         else if(m.indexOf('determined')>=0) destinyMind.mood='determined';
         else if(m.indexOf('serene')>=0) destinyMind.mood='serene';
-        journalNote('[AI] mood set: '+destinyMind.mood,'🧠');
+        journalNote('[DESTINY AI] mood set: '+destinyMind.mood,'🧠');
       });
       // Prime first build decision so AI pick is ready after townhall finishes
       _d1Think('decideBuild', {buildings:0, question:'Reply in format "type|zone". Type: first structure to build after town hall. Zone: center, mid, or edge.'}, function(resp){
@@ -8064,7 +8065,7 @@ var DESTINY_BRAIN = {
   chooseArtProject: function() {
     if(!_D1_ONLINE||!_D1_PENDING_BUILD) return null;
     var pick=_D1_PENDING_BUILD; _D1_PENDING_BUILD=null;
-    if(pick) journalNote('[AI] art project chosen: '+pick, '🎨');
+    if(pick) journalNote('[DESTINY AI] art project chosen: '+pick, '🎨');
     return pick;
   },
   // Called when DESTINY finishes exploring a POI — AI reacts
@@ -8202,7 +8203,7 @@ function _e1Think(hook, extra, cb) {
 }
 
 function _e1Say(fallback, hook, extra) {
-  if(!_E1_ONLINE){ elizaChat(fallback, true); return; }
+  if(!_E1_ONLINE) return; // silent when offline — no scripted fallback
   if(Date.now()-_E1_LAST_CHAT_MS < _E1_CHAT_GAP_MS) return;
   _e1Think(hook||'chat', extra||{}, function(resp){
     if(resp) _elizaShowChat('[E1] '+resp);
@@ -10445,12 +10446,11 @@ function toggleJournal(){
 }
 function destinyChat(msg){
   if(!chatLogEl) return;
-  // When AI is online, only show messages that came from the AI (prefixed [D1])
-  if(_D1_ONLINE && msg && msg.indexOf('[D1]') !== 0) return;
-  // Debounce: enforce minimum gap between AI messages
+  // Only show AI-generated messages — no scripted fallback
+  if(!msg || msg.indexOf('[D1]') !== 0) return;
   var nowMs = Date.now();
-  if(_D1_ONLINE && (nowMs - _D1_LAST_CHAT_MS) < _D1_CHAT_GAP_MS) return;
-  if(_D1_ONLINE) _D1_LAST_CHAT_MS = nowMs;
+  if((nowMs - _D1_LAST_CHAT_MS) < _D1_CHAT_GAP_MS) return;
+  _D1_LAST_CHAT_MS = nowMs;
   var now=new Date();
   var ts=('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
   // Strip [D1] prefix for display — clean output
@@ -10461,7 +10461,7 @@ function destinyChat(msg){
   while(chatLogEl.children.length>45) chatLogEl.removeChild(chatLogEl.firstChild);
   if(msg && msg.indexOf('[D1]')===0){
     _spawnThoughtBubble(displayMsg);
-    journalNote('[AI] '+displayMsg,'💬');
+    journalNote('[DESTINY AI] '+displayMsg,'💬');
   }
 }
 function showThought(text){ destinyChat(text); } // legacy alias → chat
@@ -10664,12 +10664,8 @@ function _elizaShowChat(msg){
   _spawnThoughtBubble(displayMsg, elizaGroup);
   if(msg && msg.indexOf('[E1]')===0) journalNote('[ELIZA] '+displayMsg,'🟠');
 }
-// elizaChat — public: only shows [E1] AI messages when online; scripted fallback when offline
-function elizaChat(msg, force){
-  if(_E1_ONLINE && !force) return; // online: only show AI-generated [E1] lines via _elizaShowChat
-  if(!force && Date.now()-_E1_LAST_CHAT_MS < _E1_CHAT_GAP_MS) return;
-  _elizaShowChat(msg);
-}
+// elizaChat — no-op when offline; only [E1] AI responses show via _elizaShowChat
+function elizaChat(msg, force){ }
 function elizaSetStatus(s){
   if(_eStatusEl) _eStatusEl.textContent=s;
 }
@@ -10694,6 +10690,14 @@ function updateEliza(delta, t){
   if(_eHpBar) _eHpBar.style.width=ePct+'%';
   if(_eHpVal) _eHpVal.textContent=Math.round(elizaHP);
   if(_eHpBar) _eHpBar.className='mini-bar-fill '+(ePct>50?'bar-orange':ePct>25?'bar-red':'bar-red');
+
+  // Stand still when AI server is offline — no scripted behavior
+  if(!_E1_ONLINE){
+    ep.head.rotation.y=Math.sin(t*0.25)*0.18;
+    ep.armLPivot.rotation.x=Math.sin(t*0.6)*0.05;
+    ep.armRPivot.rotation.x=-Math.sin(t*0.6)*0.05;
+    return;
+  }
 
   if(_eAtkCd>0) _eAtkCd-=delta;
 
@@ -11795,9 +11799,18 @@ function _getBuildThought(type){
   if(token&&Math.random()<0.20) return token;
   return _BUILD_THOUGHTS[type]||'Placing '+type+'.';
 }
+var _aiOfflineEl=document.getElementById('ai-offline-label');
+function _updateAIOfflineHUD(){
+  var offline=!_D1_ONLINE||(_hasEliza&&!_E1_ONLINE);
+  if(_aiOfflineEl) _aiOfflineEl.style.display=offline?'block':'none';
+  if(dStatusEl&&!_D1_ONLINE) dStatusEl.textContent='AI OFFLINE';
+  if(_eStatusEl&&_hasEliza&&!_E1_ONLINE) _eStatusEl.textContent='AI OFFLINE';
+}
+
 function updateDestiny(delta, t) {
-  if(_introActive) return; // freeze all game logic during intro sequences
-  // Ground ring — combat state: red pulse + expand; normal: green pulse
+  if(_introActive) return;
+  _updateAIOfflineHUD();
+  // Ground ring pulse
   var _isCombat=dState==='DEFEND_WALK'||dState==='DEFEND_ATTACK';
   if(!_isCombat){
     dParts.groundRing.material.color.setHex(0x00ff41);
@@ -11809,6 +11822,13 @@ function updateDestiny(delta, t) {
     dParts.groundRing.scale.setScalar(1.3+Math.sin(t*8)*0.15);
   }
   updateDestinyHP(delta);
+  // Stand still when AI server is offline — no scripted behavior
+  if(!_D1_ONLINE){
+    dParts.head.rotation.y=Math.sin(t*0.22)*0.18;
+    dParts.armLPivot.rotation.x=Math.sin(t*0.55)*0.05;
+    dParts.armRPivot.rotation.x=-Math.sin(t*0.55)*0.05;
+    return;
+  }
 
   // Interrupt for threats (during non-combat build states)
   if(dState==='BUILD_WALK'||dState==='BUILD_WAIT'||dState==='BUILD_ARRIVE'||
