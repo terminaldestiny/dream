@@ -8164,11 +8164,16 @@ function updateThreatSpawner(delta){
       var _ispr=new THREE.Sprite(new THREE.SpriteMaterial({map:_itex,transparent:true,blending:THREE.AdditiveBlending}));
       _ispr.scale.set(5.6,1.05,1); _ispr.position.y=_idf.sc*2.8+0.8; _igrp.add(_ispr);
       _igrp.scale.setScalar(_idf.sc); _igrp.position.copy(_ihp); scene.add(_igrp);
+      var _iNearZone=_nearestZone(_ihp);
+      var _iPWP=_iNearZone?_iNearZone.waypoints:null;
+      var _iPIdx=_iPWP?Math.floor(Math.random()*_iPWP.length):0;
+      var _iPT=_iPWP?_iPWP[_iPIdx].clone():_ihp.clone();
       threats.push({group:_igrp,glowMat:_ibb.glowMat,shell:_ibb.shell,shell2:_ibb.shell2,
         weapon:_ibb.weapon,gRing:_ibb.gRing,pos:_ihp.clone(),
         alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
         hp:_idf.hp,maxHp:_idf.hp,type:_idf.type,rank:_idf.rank,speedMult:_idf.spd,
-        walkPhase:Math.random()*Math.PI*2,homePos:_ihp.clone(),patrolTarget:_ihp.clone(),
+        walkPhase:Math.random()*Math.PI*2,homePos:_ihp.clone(),patrolTarget:_iPT,
+        _patrolWaypoints:_iPWP,_patrolIdx:_iPIdx,
         nState:'PATROL',alertRange:_idf.alertR,alertTimer:0,atkCooldown:0,
         atkRate:3.6,atkDmg:4,chargeTimer:0});
     }
@@ -9603,33 +9608,112 @@ var _NATIVE_CHAT={
 };
 
 // ════════════════════════════════════════════════════════════════════
-// ── ENEMY CAMPS + PATROL ROUTES ──────────────────────────────────────
+// ── PATROL ROUTES ────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════
+
+var _patrolZones=[];
+
+(function _buildPatrolZones(){
+  var zoneDefs=[
+    {angle:0.35,  r:22, label:'GOBLIN OUTPOST',  types:['goblinScout','goblinScout','tribeSoldier']},
+    {angle:1.90,  r:28, label:'RANGER CAMP',     types:['forestRanger','forestRanger','mercenary']},
+    {angle:3.40,  r:24, label:'UNDEAD HOLLOW',   types:['boneSkeleton','boneSkeleton','shadowWraith']},
+    {angle:4.80,  r:30, label:'ORC STRONGHOLD',  types:['orcGuard','tribeSoldier','orcGuard']},
+    {angle:6.00,  r:20, label:'LIZARDMAN LAIR',  types:['lizardmanHunter','lizardmanHunter','caveSpider']},
+  ];
+
+  zoneDefs.forEach(function(zd){
+    var cx=Math.cos(zd.angle)*zd.r, cz=Math.sin(zd.angle)*zd.r;
+
+    // Pentagon patrol waypoints
+    var ptCount=5, ptRadius=4.5+Math.random()*2.0;
+    var waypoints=[];
+    var angleOffset=Math.random()*Math.PI*2;
+    for(var wi=0;wi<ptCount;wi++){
+      var wa=angleOffset+(wi/ptCount)*Math.PI*2;
+      waypoints.push(new THREE.Vector3(cx+Math.cos(wa)*ptRadius,0,cz+Math.sin(wa)*ptRadius));
+    }
+
+    // Dirt trails connecting waypoints
+    var mTrail=new THREE.MeshBasicMaterial({color:0x2a1a08,transparent:true,opacity:0.55,depthWrite:false,side:THREE.DoubleSide});
+    for(var ti=0;ti<waypoints.length;ti++){
+      var wA=waypoints[ti], wB=waypoints[(ti+1)%waypoints.length];
+      var mid=wA.clone().add(wB).multiplyScalar(0.5);
+      var len=wA.distanceTo(wB);
+      var trailMesh=new THREE.Mesh(new THREE.PlaneBufferGeometry(len,0.38),mTrail.clone());
+      trailMesh.rotation.x=-Math.PI/2;
+      trailMesh.position.set(mid.x,0.015,mid.z);
+      trailMesh.rotation.z=-Math.atan2(wB.z-wA.z,wB.x-wA.x);
+      scene.add(trailMesh);
+    }
+
+    _patrolZones.push({
+      pos:new THREE.Vector3(cx,0,cz),
+      waypoints:waypoints,
+      types:zd.types,
+      label:zd.label
+    });
+  });
+})();
+
+function _nearestZone(pos){
+  var best=null, bestD=Infinity;
+  for(var zi=0;zi<_patrolZones.length;zi++){
+    var d=pos.distanceTo(_patrolZones[zi].pos);
+    if(d<bestD){bestD=d;best=_patrolZones[zi];}
+  }
+  return best;
+}
 
 function spawnThreat() {
   var aliveCount=0;
   for(var i=0;i<structures.length;i++) if(structures[i].alive) aliveCount++;
-  var homePos;
-  var liveNodes=[];
-  for(var _ni=0;_ni<resourceNodes.length;_ni++){
-    if(!resourceNodes[_ni].depleted) liveNodes.push(resourceNodes[_ni]);
-  }
-  if(liveNodes.length>0){
-    var _n=liveNodes[Math.floor(Math.random()*liveNodes.length)];
-    var _ta=Math.random()*Math.PI*2, _tr=2.5+Math.random()*4.0;
-    homePos=new THREE.Vector3(_n.pos.x+Math.cos(_ta)*_tr,0,_n.pos.z+Math.sin(_ta)*_tr);
+
+  // 70% chance: spawn near a patrol zone; 30%: near a resource node
+  var homePos, assignedZone=null, patrolWaypoints=null, patrolIdx=0;
+  if(_patrolZones.length>0&&Math.random()<0.70){
+    assignedZone=_patrolZones[Math.floor(Math.random()*_patrolZones.length)];
+    var _ca=Math.random()*Math.PI*2;
+    homePos=new THREE.Vector3(
+      assignedZone.pos.x+Math.cos(_ca)*1.5,0,
+      assignedZone.pos.z+Math.sin(_ca)*1.5);
+    patrolWaypoints=assignedZone.waypoints;
+    patrolIdx=Math.floor(Math.random()*patrolWaypoints.length);
   } else {
-    var _a=Math.random()*Math.PI*2, _r=18+Math.random()*16;
-    homePos=new THREE.Vector3(Math.cos(_a)*_r,0,Math.sin(_a)*_r);
+    var liveNodes=[];
+    for(var _ni=0;_ni<resourceNodes.length;_ni++){
+      if(!resourceNodes[_ni].depleted) liveNodes.push(resourceNodes[_ni]);
+    }
+    if(liveNodes.length>0){
+      var _n=liveNodes[Math.floor(Math.random()*liveNodes.length)];
+      var _ta=Math.random()*Math.PI*2, _tr=2.5+Math.random()*4.0;
+      homePos=new THREE.Vector3(_n.pos.x+Math.cos(_ta)*_tr,0,_n.pos.z+Math.sin(_ta)*_tr);
+    } else {
+      var _a=Math.random()*Math.PI*2, _r=18+Math.random()*16;
+      homePos=new THREE.Vector3(Math.cos(_a)*_r,0,Math.sin(_a)*_r);
+    }
   }
   if(homePos.length()<12){ homePos.normalize().multiplyScalar(12+Math.random()*8); }
+
+  // Weight pool toward zone-appropriate types
   var pool=[];
-  for(var _pi=0;_pi<_NATIVE_TYPES.length;_pi++){
-    var _nt=_NATIVE_TYPES[_pi];
-    var _w=_nt.rank==='grunt'?8:_nt.rank==='warrior'?4:_nt.rank==='elite'?2:1;
-    for(var _wi=0;_wi<_w;_wi++) pool.push(_nt);
+  if(assignedZone){
+    for(var _zi=0;_zi<assignedZone.types.length;_zi++){
+      var _zt=assignedZone.types[_zi];
+      for(var _pi2=0;_pi2<_NATIVE_TYPES.length;_pi2++){
+        if(_NATIVE_TYPES[_pi2].type===_zt){ pool.push(_NATIVE_TYPES[_pi2]); pool.push(_NATIVE_TYPES[_pi2]); }
+      }
+    }
+  }
+  if(pool.length===0){
+    for(var _pi=0;_pi<_NATIVE_TYPES.length;_pi++){
+      var _nt=_NATIVE_TYPES[_pi];
+      var _w=_nt.rank==='grunt'?8:_nt.rank==='warrior'?4:_nt.rank==='elite'?2:1;
+      for(var _wi=0;_wi<_w;_wi++) pool.push(_nt);
+    }
   }
   if(pool.length===0) pool=[_NATIVE_TYPES[0]];
+
   var def=pool[Math.floor(Math.random()*pool.length)];
   var g=new THREE.Group();
   var built=def.builder(g);
@@ -9637,16 +9721,19 @@ function spawnThreat() {
   var sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,blending:THREE.AdditiveBlending}));
   sprite.scale.set(5.6,1.05,1); sprite.position.y=def.sc*2.8+0.8; g.add(sprite);
   g.scale.setScalar(def.sc); g.position.copy(homePos); scene.add(g);
-  document.getElementById('wb-title').textContent=def.banTitle;
+  document.getElementById('wb-title').textContent=assignedZone?assignedZone.label:def.banTitle;
   document.getElementById('wb-sub').textContent=def.banSub;
   document.getElementById('wave-banner').classList.add('show');
   setTimeout(function(){document.getElementById('wave-banner').classList.remove('show');},2800);
+
+  var firstPT=patrolWaypoints?patrolWaypoints[patrolIdx].clone():homePos.clone();
   threats.push({group:g,glowMat:built.glowMat,shell:built.shell,shell2:built.shell2,
     weapon:built.weapon,gRing:built.gRing,pos:homePos.clone(),
     alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
     hp:def.hp,maxHp:def.hp,type:def.type,rank:def.rank,speedMult:def.spd,
     walkPhase:Math.random()*Math.PI*2,
-    homePos:homePos.clone(),patrolTarget:homePos.clone(),
+    homePos:homePos.clone(),patrolTarget:firstPT,
+    _patrolWaypoints:patrolWaypoints,_patrolIdx:patrolIdx,
     nState:'PATROL',alertRange:def.alertR,alertTimer:0,
     atkCooldown:0,
     atkRate:def.rank==='champion'?1.6:def.rank==='elite'?2.2:def.rank==='warrior'?2.8:3.6,
@@ -9949,8 +10036,13 @@ function updateThreats(delta, t) {
     if(th.nState==='PATROL'){
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.5;
       if(th.group.position.distanceTo(th.patrolTarget)<0.9){
-        var _pa=Math.random()*Math.PI*2, _pr=1.5+Math.random()*3.5;
-        th.patrolTarget=new THREE.Vector3(th.homePos.x+Math.cos(_pa)*_pr,0,th.homePos.z+Math.sin(_pa)*_pr);
+        if(th._patrolWaypoints&&th._patrolWaypoints.length>0){
+          th._patrolIdx=(th._patrolIdx+1)%th._patrolWaypoints.length;
+          th.patrolTarget=th._patrolWaypoints[th._patrolIdx].clone();
+        } else {
+          var _pa=Math.random()*Math.PI*2, _pr=1.5+Math.random()*3.5;
+          th.patrolTarget=new THREE.Vector3(th.homePos.x+Math.cos(_pa)*_pr,0,th.homePos.z+Math.sin(_pa)*_pr);
+        }
       }
       // MGS-style two-tier detection
       if(dPos&&dDist<th.alertRange*0.72){
