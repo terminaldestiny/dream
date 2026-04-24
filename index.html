@@ -5613,6 +5613,9 @@ function placeStructure(type,pos,rot,opts){
       revIdx++; setTimeout(revealNext,phDelay);
     } else {
       g.remove(scaff); s.growing=false;
+      _spawnThoughtBubble(type+' complete.');
+      personalityChat('finishBuild',type);
+      _sfxBuildDone();
       DESTINY_BRAIN.onBuildComplete(type, pos);
       if(type==='townhall'){
         // Queue the remaining upgrade phases
@@ -10717,8 +10720,7 @@ function updateDestiny(delta, t) {
       placeStructure(dBuildType,dBuildPos.clone(),dBuildRot);
       createBurst(dGroup.position.clone().setY(0.6),destinyMind.theme.wire,28);
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
-      personalityChat('finishBuild',dBuildType);
-      journalNote('✅ Built: '+dBuildType,'🏗'); _spawnThoughtBubble(dBuildType+' complete.'); _sfxBuildDone();
+      journalNote('✅ Built: '+dBuildType,'🏗');
       setStatus('BUILDING'); dSeqIdx++;
       if(dSeqIdx>=BUILD_SEQUENCE.length){
         // Refill personality traits from brain if provided
