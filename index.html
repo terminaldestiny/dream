@@ -7915,7 +7915,8 @@ function _d1State(extra) {
     threats: threats.filter(function(th){return th.alive&&!th.dissolving;}).map(function(th){return th.type||'unknown';}),
     health: Math.round(destinyHP||100) + '/' + (destinyMaxHP||100),
     mood: destinyMind.mood||'calm',
-    kills: killCount
+    kills: killCount,
+    partner: _hasEliza && elizaGroup ? { name:'ELIZA', health: Math.round(elizaHP||100)+'/'+elizaMaxHP, status: eState } : null
   };
   if(extra) for(var k in extra) s[k]=extra[k];
   return s;
@@ -8172,7 +8173,8 @@ function _e1State(extra) {
     buildings: structures.filter(function(st){return st.alive;}).length,
     threats: threats.filter(function(th){return th.alive&&!th.dissolving;}).map(function(th){return th.type||'unknown';}),
     health: Math.round(elizaHP||100)+'/'+elizaMaxHP,
-    status: eState
+    status: eState,
+    partner: _hasDestiny && dGroup ? { name:'DESTINY', health: Math.round(destinyHP||100)+'/'+(destinyMaxHP||100), status: dState } : null
   };
   if(extra) for(var k in extra) s[k]=extra[k];
   return s;
