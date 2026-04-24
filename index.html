@@ -383,7 +383,7 @@
   <div style="font-size:28px;margin-bottom:20px;">🖥️</div>
   <div style="font-size:14px;letter-spacing:2px;color:#ffb000;margin-bottom:16px;">DESKTOP RECOMMENDED</div>
   <div style="font-size:11px;letter-spacing:1px;color:#00ff4188;line-height:1.8;margin-bottom:32px;">This world runs a live 3D AI agent 24/7.<br>On mobile it will drain your battery<br>and run hot. Open on a computer<br>for the full experience.</div>
-  <button onclick="document.getElementById('mobile-warning').style.display='none';if(typeof _introActive!=='undefined'&&_introActive){_introActive=false;dTimer=0.5;}" style="background:rgba(0,255,65,0.08);border:1px solid #00ff4144;color:#00ff4188;font-family:'Courier New',monospace;font-size:10px;letter-spacing:3px;padding:12px 28px;cursor:pointer;">CONTINUE ANYWAY</button>
+  <button onclick="document.getElementById('mobile-warning').style.display='none';" style="background:rgba(0,255,65,0.08);border:1px solid #00ff4144;color:#00ff4188;font-family:'Courier New',monospace;font-size:10px;letter-spacing:3px;padding:12px 28px;cursor:pointer;">CONTINUE ANYWAY</button>
 </div>
 <div id="scanlines"></div>
 <div id="threat-flash"></div>
@@ -10625,74 +10625,73 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
   if(_saveExists) return;
   _introActive=true;
   dTimer=999;
-  if(_MOBILE){
-    _hasDestiny=true; _hasEliza=false;
-    setTimeout(function(){ _introActive=false; dTimer=0.5; },800);
-    return;
-  }
 
   var _smol=window.innerWidth<900;
+  var _nano=_MOBILE||window.innerWidth<540; // true phones — full-width stacked layout
   var _selD=true, _selE=false; // selection state
 
-  // Black overlay — appended after boot is fully gone for seamless handoff
+  // On mobile boot screen is hidden, so show overlay sooner; on desktop wait for boot to clear
+  var _ovDelay=_MOBILE?400:5050;
+
+  // Black overlay
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:998;pointer-events:all;font-family:"Courier New",monospace;';
   setTimeout(function(){
     document.body.appendChild(ov);
     void ov.offsetWidth;
     setTimeout(function(){ panel.style.opacity='1'; },100);
-  },5050);
+  },_ovDelay);
 
   // ── Agent selection panel ─────────────────────────────────────────
   var panel=document.createElement('div');
-  panel.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:20px;opacity:0;transition:opacity 0.8s;width:100%;max-width:680px;padding:0 16px;box-sizing:border-box;';
+  panel.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:'+(_nano?'14px':'20px')+';opacity:0;transition:opacity 0.8s;width:100%;max-width:680px;padding:0 '+(_nano?'14px':'16px')+';box-sizing:border-box;max-height:92vh;overflow-y:auto;';
   ov.appendChild(panel);
 
   var hdr=document.createElement('div');
-  hdr.style.cssText='color:#00ff41;font-size:'+(_smol?'9px':'11px')+';letter-spacing:5px;text-align:center;';
+  hdr.style.cssText='color:#00ff41;font-size:'+(_nano?'9px':_smol?'9px':'11px')+';letter-spacing:5px;text-align:center;';
   hdr.textContent='// AGENT INITIALIZATION //';
   panel.appendChild(hdr);
 
   var title=document.createElement('div');
-  title.style.cssText='color:#44ffaa;font-size:'+(_smol?'18px':'26px')+';letter-spacing:3px;text-align:center;margin-bottom:4px;';
+  title.style.cssText='color:#44ffaa;font-size:'+(_nano?'16px':_smol?'18px':'26px')+';letter-spacing:3px;text-align:center;margin-bottom:2px;';
   title.textContent='SELECT YOUR AGENTS';
   panel.appendChild(title);
 
   var sub=document.createElement('div');
-  sub.style.cssText='color:#00ff4166;font-size:'+(_smol?'9px':'10px')+';letter-spacing:3px;text-align:center;margin-top:-12px;margin-bottom:4px;';
+  sub.style.cssText='color:#00ff4166;font-size:'+(_nano?'8px':'10px')+';letter-spacing:3px;text-align:center;margin-top:-8px;margin-bottom:2px;';
   sub.textContent='CHOOSE ONE OR BOTH';
   panel.appendChild(sub);
 
-  // ── Card row ─────────────────────────────────────────────────────
+  // ── Card row — stacks vertically on phones ────────────────────────
   var cardRow=document.createElement('div');
-  cardRow.style.cssText='display:flex;gap:'+(_smol?'12px':'20px')+';justify-content:center;flex-wrap:wrap;width:100%;';
+  cardRow.style.cssText='display:flex;flex-direction:'+(_nano?'column':'row')+';gap:'+(_nano?'10px':'20px')+';justify-content:center;align-items:'+(_nano?'stretch':'flex-start')+';width:100%;';
   panel.appendChild(cardRow);
 
   function _mkCard(name, role, desc, col, selInit){
     var card=document.createElement('div');
-    var w=_smol?'240px':'280px';
-    card.style.cssText='width:'+w+';border:1px solid '+(selInit?col+'cc':col+'44')+';padding:'+(_smol?'14px 16px':'18px 20px')+';cursor:pointer;transition:all 0.2s;position:relative;box-sizing:border-box;background:'+(selInit?col+'0c':'transparent')+';';
+    var w=_nano?'100%':(_smol?'240px':'280px');
+    card.style.cssText='width:'+w+';border:1px solid '+(selInit?col+'cc':col+'44')+';padding:'+(_nano?'12px 14px':_smol?'14px 16px':'18px 20px')+';cursor:pointer;transition:all 0.2s;position:relative;box-sizing:border-box;background:'+(selInit?col+'0c':'transparent')+';';
     var selected=selInit;
 
     var cName=document.createElement('div');
-    cName.style.cssText='color:'+col+';font-size:'+(_smol?'14px':'17px')+';letter-spacing:4px;margin-bottom:4px;';
+    cName.style.cssText='color:'+col+';font-size:'+(_nano?'13px':_smol?'14px':'17px')+';letter-spacing:4px;margin-bottom:4px;';
     cName.textContent='◈ '+name;
     card.appendChild(cName);
 
     var cRole=document.createElement('div');
-    cRole.style.cssText='color:'+col+'99;font-size:'+(_smol?'8px':'9px')+';letter-spacing:3px;margin-bottom:12px;';
+    cRole.style.cssText='color:'+col+'99;font-size:'+(_nano?'9px':'9px')+';letter-spacing:3px;margin-bottom:'+(_nano?'8px':'12px')+';';
     cRole.textContent=role;
     card.appendChild(cRole);
 
     desc.forEach(function(d){
       var row=document.createElement('div');
-      row.style.cssText='color:#aaaaaa88;font-size:'+(_smol?'8px':'9px')+';letter-spacing:2px;margin-bottom:3px;';
+      row.style.cssText='color:#aaaaaa88;font-size:'+(_nano?'9px':'9px')+';letter-spacing:2px;margin-bottom:3px;';
       row.textContent='· '+d;
       card.appendChild(row);
     });
 
     var statusBar=document.createElement('div');
-    statusBar.style.cssText='margin-top:14px;border:1px solid '+(selInit?col+'88':col+'33')+';padding:5px 10px;text-align:center;font-size:'+(_smol?'8px':'9px')+';letter-spacing:3px;color:'+(selInit?col:'#ffffff44')+';transition:all 0.2s;';
+    statusBar.style.cssText='margin-top:'+(_nano?'10px':'14px')+';border:1px solid '+(selInit?col+'88':col+'33')+';padding:'+(_nano?'7px 10px':'5px 10px')+';text-align:center;font-size:'+(_nano?'10px':'9px')+';letter-spacing:3px;color:'+(selInit?col:'#ffffff44')+';transition:all 0.2s;';
     statusBar.textContent=selInit?'SELECTED':'SELECT';
     card.appendChild(statusBar);
 
@@ -10737,7 +10736,7 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
 
   // Deploy button
   var btnDeploy=document.createElement('button');
-  btnDeploy.style.cssText='background:transparent;border:1px solid #00ff4166;color:#00ff41;font-family:"Courier New",monospace;font-size:'+(_smol?'10px':'12px')+';letter-spacing:4px;padding:12px 36px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;margin-top:4px;';
+  btnDeploy.style.cssText='background:transparent;border:1px solid #00ff4166;color:#00ff41;font-family:"Courier New",monospace;font-size:'+(_nano?'12px':_smol?'10px':'12px')+';letter-spacing:4px;padding:'+(_nano?'14px':'12px')+' 36px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;margin-top:4px;width:'+(_nano?'100%':'auto')+';';
   btnDeploy.textContent='DEPLOY AGENTS';
   btnDeploy.onmouseenter=function(){ btnDeploy.style.background='#00ff4118'; };
   btnDeploy.onmouseleave=function(){ btnDeploy.style.background='transparent'; };
