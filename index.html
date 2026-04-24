@@ -10662,6 +10662,7 @@ function _elizaShowChat(msg){
   chatLogEl.appendChild(line); chatLogEl.scrollTop=chatLogEl.scrollHeight;
   while(chatLogEl.children.length>45) chatLogEl.removeChild(chatLogEl.firstChild);
   _spawnThoughtBubble(displayMsg, elizaGroup);
+  if(msg && msg.indexOf('[E1]')===0) journalNote('[ELIZA] '+displayMsg,'🟠');
 }
 // elizaChat — public: only shows [E1] AI messages when online; scripted fallback when offline
 function elizaChat(msg, force){
