@@ -8145,6 +8145,149 @@ var DESTINY_BRAIN = {
   }
 };
 
+// ════════════════════════════════════════════════════════════════════
+// ── ELIZA_BRAIN — AI backend (mirrors DESTINY_BRAIN) ─────────────────
+// ════════════════════════════════════════════════════════════════════
+var _E1_SERVER = (location.hostname==='localhost'||location.hostname==='127.0.0.1')
+  ? 'http://localhost:3000/api/eliza'
+  : '/api/eliza';
+var _E1_ONLINE = false;
+var _E1_THOUGHT_TIMER = 150;    // first thought fires 150s after online (offset from DESTINY)
+var _E1_THOUGHT_INTERVAL = 360; // seconds between periodic thoughts
+var _E1_LAST_CHAT_MS = 0;
+var _E1_CHAT_GAP_MS = 150000;   // min 150s between chat messages
+var _E1_LAST_BUILD_RESP = null;
+var _E1_NEXT_ACTION = null;     // 'explore'|'build'|'gather'|'scout'
+var _E1_PENDING_RARE = null;
+
+function _e1State(extra) {
+  var s = {
+    resources: {
+      '$DESTINY': Math.round(res.compute||0),
+      wood:  Math.round(res.wood||0),
+      stone: Math.round(res.stone||0),
+      lumite: Math.round(res.lumite||0)
+    },
+    buildings: structures.filter(function(st){return st.alive;}).length,
+    threats: threats.filter(function(th){return th.alive&&!th.dissolving;}).map(function(th){return th.type||'unknown';}),
+    health: Math.round(elizaHP||100)+'/'+elizaMaxHP,
+    status: eState
+  };
+  if(extra) for(var k in extra) s[k]=extra[k];
+  return s;
+}
+
+function _e1Think(hook, extra, cb) {
+  var payload = _e1State(extra);
+  payload.hook = hook;
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', _E1_SERVER, true);
+  xhr.setRequestHeader('Content-Type','application/json');
+  xhr.timeout = 8000;
+  xhr.onreadystatechange = function() {
+    if(xhr.readyState!==4) return;
+    _E1_ONLINE = (xhr.status>=200&&xhr.status<500);
+    if(xhr.status===200) {
+      try {
+        var r = JSON.parse(xhr.responseText);
+        var resp = r.response||null;
+        if(resp) resp = resp.replace(/\bcompute\b/gi,'$DESTINY');
+        cb(resp);
+      } catch(e){ cb(null); }
+    } else { cb(null); }
+  };
+  xhr.ontimeout = function(){ cb(null); };
+  xhr.onerror   = function(){ cb(null); };
+  xhr.send(JSON.stringify(payload));
+}
+
+function _e1Say(fallback, hook, extra) {
+  if(!_E1_ONLINE){ elizaChat(fallback, true); return; }
+  if(Date.now()-_E1_LAST_CHAT_MS < _E1_CHAT_GAP_MS) return;
+  _e1Think(hook||'chat', extra||{}, function(resp){
+    if(resp) _elizaShowChat('[E1] '+resp);
+  });
+}
+
+function _e1PrefetchAction() {
+  if(!_E1_ONLINE) return;
+  var _anyUpgrade=false;
+  for(var _ui=0;_ui<structures.length;_ui++){
+    var _us=structures[_ui]; if(_us.alive&&!_us.growing&&(_us.level||1)<3){_anyUpgrade=true;break;}
+  }
+  var _q='Reply in format "action|detail". Action: explore, build, gather, or scout. '
+    +(_anyUpgrade?'If gather, detail = lumite, deepIron, or ancientStone. ':'')
+    +'Otherwise detail can be blank.';
+  _e1Think('decidePath',{question:_q},function(resp){
+    if(!resp) return;
+    var parts=resp.split('|');
+    var action=(parts[0]||'').toLowerCase().trim();
+    if(action.indexOf('build')>=0){
+      _E1_NEXT_ACTION='build';
+    } else if(action.indexOf('gather')>=0){
+      _E1_NEXT_ACTION='gather';
+      var rv=(parts[1]||'').toLowerCase();
+      if(rv.indexOf('lumite')>=0) _E1_PENDING_RARE='lumite';
+      else if(rv.indexOf('deepiron')>=0||rv.indexOf('deep')>=0) _E1_PENDING_RARE='deepIron';
+      else if(rv.indexOf('ancient')>=0||rv.indexOf('stone')>=0) _E1_PENDING_RARE='ancientStone';
+    } else if(action.indexOf('scout')>=0){
+      _E1_NEXT_ACTION='scout';
+    } else {
+      _E1_NEXT_ACTION='explore';
+    }
+  });
+}
+
+// Ping ELIZA server on load
+(function(){
+  var chk=new XMLHttpRequest();
+  var _url=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?'http://localhost:3000/health':'/health';
+  chk.open('GET',_url,true); chk.timeout=3000;
+  chk.onreadystatechange=function(){
+    if(chk.readyState===4&&chk.status===200){
+      _E1_ONLINE=true;
+      console.log('[ELIZA] Proxy online.');
+      _e1Think('generateThought',{question:'Reply with one word only — your operational stance for this session: alert, aggressive, methodical, or adaptive.'},function(resp){
+        if(!resp) return;
+        journalNote('[ELIZA AI] stance: '+(resp.toLowerCase().split(/\s/)[0]||resp),'🟠');
+      });
+    }
+  };
+  chk.onerror=function(){ console.log('[ELIZA] Proxy offline — scripted mode.'); };
+  chk.ontimeout=function(){ console.log('[ELIZA] Proxy timeout — scripted mode.'); };
+  chk.send();
+})();
+
+var ELIZA_BRAIN = {
+  onBuildComplete: function(type) {
+    if(!_E1_ONLINE) return;
+    _e1Think('decideBuild',{lastEvent:'finished '+type, question:'Reply with one structure type name only — what to build next.'}, function(resp){
+      if(resp){
+        var t=resp.trim().toLowerCase().split(/\s/)[0];
+        _E1_LAST_BUILD_RESP=t;
+        journalNote('→ ELIZA BUILD: '+t,'🔧');
+      }
+    });
+  },
+  onDiscovery: function(poiName) {
+    if(!_E1_ONLINE) return null;
+    _e1Think('onDiscovery',{lastEvent:'discovered '+poiName, question:'React briefly to this discovery.'}, function(resp){
+      if(resp) setTimeout(function(){ _elizaShowChat('[E1] '+resp); },900);
+    });
+    return '__AI__';
+  },
+  tick: function(delta) {
+    if(!_E1_ONLINE) return;
+    _E1_THOUGHT_TIMER-=delta;
+    if(_E1_THOUGHT_TIMER<=0){
+      _E1_THOUGHT_TIMER=_E1_THOUGHT_INTERVAL;
+      _e1Think('generateThought',{question:'Share a tactical observation or world thought.'}, function(resp){
+        if(resp) _elizaShowChat('[E1] '+resp);
+      });
+    }
+  }
+};
+
 // ── Spinning/animated parts ────────────────────────────────────────
 var _spinners=[]; // {mesh, axis:'x'|'y'|'z', speed}
 function addSpinner(mesh,axis,speed){ _spinners.push({mesh:mesh,axis:axis,speed:speed}); }
@@ -10505,15 +10648,26 @@ var _ELIZA_THOUGHTS=[
   'No threats detected. Yet.',
 ];
 
-var _elizaChatLastMs=0;
-var _ELIZA_BUBBLE_GAP=18000; // ms — same rough cadence as AI API calls
+// _elizaShowChat — internal: always displays (called with [E1]-tagged AI text or forced scripted text)
+function _elizaShowChat(msg){
+  if(!chatLogEl) return;
+  var nowMs=Date.now();
+  if(nowMs-_E1_LAST_CHAT_MS < _E1_CHAT_GAP_MS) return;
+  _E1_LAST_CHAT_MS=nowMs;
+  var now=new Date();
+  var ts=('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
+  var displayMsg=msg?msg.replace(/^\[E1\]\s*/,''):msg;
+  var line=document.createElement('div'); line.className='chat-line';
+  line.innerHTML='<span class="chat-ts">['+ts+']</span><span class="chat-name" style="color:#ff8800">ELIZA:</span><span class="chat-msg"> '+displayMsg+'</span>';
+  chatLogEl.appendChild(line); chatLogEl.scrollTop=chatLogEl.scrollHeight;
+  while(chatLogEl.children.length>45) chatLogEl.removeChild(chatLogEl.firstChild);
+  _spawnThoughtBubble(displayMsg, elizaGroup);
+}
+// elizaChat — public: only shows [E1] AI messages when online; scripted fallback when offline
 function elizaChat(msg, force){
-  if(!force){
-    var _now=Date.now();
-    if(_now-_elizaChatLastMs<_ELIZA_BUBBLE_GAP) return;
-    _elizaChatLastMs=_now;
-  }
-  _spawnThoughtBubble(msg, elizaGroup);
+  if(_E1_ONLINE && !force) return; // online: only show AI-generated [E1] lines via _elizaShowChat
+  if(!force && Date.now()-_E1_LAST_CHAT_MS < _E1_CHAT_GAP_MS) return;
+  _elizaShowChat(msg);
 }
 function elizaSetStatus(s){
   if(_eStatusEl) _eStatusEl.textContent=s;
@@ -10571,7 +10725,7 @@ function updateEliza(delta, t){
         resourceNodes[eRareNodeIdx].claimed=false;
       eRareNodeIdx=-1;
       _eCurrentThreat=_eth;
-      elizaChat(_NATIVE_CHAT[_eth.type]||'Contact. Engaging.', true);
+      _e1Say(_NATIVE_CHAT[_eth.type]||'Contact. Engaging.','chat',{lastEvent:'enemy spotted: '+_eth.type,question:'Short combat callout.'});
       eState='DEFEND_WALK'; elizaSetStatus('DEFENDING');
     }
   }
@@ -10591,7 +10745,7 @@ function updateEliza(delta, t){
   } else if(eState==='BUILD_ARRIVE'){
     ep.armLPivot.rotation.x=Math.sin(t*1.2)*0.08; ep.armRPivot.rotation.x=-Math.sin(t*1.2)*0.08;
     eTimer-=delta;
-    if(eTimer<=0){eState='BUILD_PLACE';eTimer=D_PLACE_TIME;elizaChat(_getBuildThought(eBuildType));}
+    if(eTimer<=0){eState='BUILD_PLACE';eTimer=D_PLACE_TIME;_e1Say(_getBuildThought(eBuildType),'chat',{lastEvent:'placing '+eBuildType,question:'Short in-character line about building '+eBuildType+'.'});}
 
   } else if(eState==='BUILD_PLACE'){
     ep.armLPivot.rotation.x=-0.45+Math.sin(t*9)*0.1; ep.armRPivot.rotation.x=-0.45+Math.sin(t*9+1)*0.1;
@@ -10602,8 +10756,9 @@ function updateEliza(delta, t){
       createBurst(eg.position.clone().setY(0.6),0xff8800,28);
       ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
       journalNote('✅ ELIZA built: '+eBuildType,'🔧');
+      ELIZA_BRAIN.onBuildComplete(eBuildType);
       elizaSetStatus('BUILDING');
-      var nextAe=pickAutonomousBuild();
+      var nextAe=_E1_LAST_BUILD_RESP?_E1_LAST_BUILD_RESP:pickAutonomousBuild(); _E1_LAST_BUILD_RESP=null;
       if(nextAe&&BUILD_COSTS[nextAe]){
         eBuildType=nextAe;
         var neededAe=resourceNeeded(nextAe);
@@ -10612,7 +10767,7 @@ function updateEliza(delta, t){
           if(bPosAe){
             eBuildPos.copy(bPosAe); eBuildRot=Math.atan2(bPosAe.x,bPosAe.z);
             eTarget.copy(bPosAe); eState='BUILD_WALK'; elizaSetStatus('MOVING');
-            elizaChat('Building: '+nextAe); return;
+            _e1Say('Building: '+nextAe,'chat',{lastEvent:'starting build: '+nextAe,question:'Short line about starting to build '+nextAe+'.'}); return;
           }
         } else {
           var nIdxAe=findFreeNode(neededAe);
@@ -10620,7 +10775,7 @@ function updateEliza(delta, t){
             eGatherNodeIdx=nIdxAe; resourceNodes[nIdxAe].claimed=true;
             eCarryType=neededAe; eTarget.copy(resourceNodes[nIdxAe].pos);
             eState='GATHER_WALK'; elizaSetStatus('GATHERING');
-            elizaChat('Need '+_resName(neededAe)+' for '+nextAe+'.'); return;
+            _e1Say('Need '+_resName(neededAe)+' for '+nextAe+'.','chat',{lastEvent:'gathering '+_resName(neededAe),question:'Short line about gathering resources.'}); return;
           }
         }
       }
@@ -10642,7 +10797,7 @@ function updateEliza(delta, t){
           if(bPosBW){
             eBuildPos.copy(bPosBW); eBuildRot=Math.atan2(bPosBW.x,bPosBW.z);
             eTarget.copy(bPosBW); eState='BUILD_WALK'; elizaSetStatus('MOVING');
-            elizaChat('Building: '+eBT); return;
+            _e1Say('Building: '+eBT,'chat',{lastEvent:'starting build: '+eBT,question:'Short line about starting to build '+eBT+'.'}); return;
           } else { eTimer=8; }
         } else {
           var nBW=findFreeNode(neededBW);
@@ -10650,7 +10805,7 @@ function updateEliza(delta, t){
             eGatherNodeIdx=nBW; resourceNodes[nBW].claimed=true;
             eCarryType=neededBW; eTarget.copy(resourceNodes[nBW].pos);
             eState='GATHER_WALK'; elizaSetStatus('GATHERING');
-            elizaChat('Gathering '+_resName(neededBW)+'.'); return;
+            _e1Say('Gathering '+_resName(neededBW)+'.','chat',{lastEvent:'gathering '+_resName(neededBW),question:'Short line about gathering resources.'}); return;
           } else { eTimer=5; elizaSetStatus('WAITING'); }
         }
       } else { eState='EXPLORE_WAIT'; eTimer=6; elizaSetStatus('PLANNING'); }
@@ -10687,7 +10842,7 @@ function updateEliza(delta, t){
       }
       eCarrying=D_CARRY[eCarryType]||15; eGatherNodeIdx=-1;
       createBurst(eg.position.clone().setY(0.8),0xff8800,10);
-      elizaChat('Mined '+eCarrying+' '+eCarryType+'. Returning.');
+      _e1Say('Mined '+eCarrying+' '+eCarryType+'.','chat',{lastEvent:'gathered '+eCarryType,question:'Short line about gathering resources and heading back.'});
       eTarget.set(-2,0,-2); eState='GATHER_RETURN'; elizaSetStatus('RETURNING');
     }
 
@@ -10803,7 +10958,7 @@ function updateEliza(delta, t){
             createBurst(_eCurrentThreat.group.position.clone().setY(1.2),0x00ffff,40);
             elizaHP=Math.max(0,elizaHP-6);
             _spawnDmgNumber(eg.position.clone().setY(1.8),'-6 [SHARDS]','#ff8800');
-            elizaChat('Crystal shard burst!');
+            _e1Say('Crystal shard burst!','chat',{lastEvent:'crystal golem shard burst',question:'Short reaction to taking shard damage.'});
             if(elizaHP<=0&&eState!=='STUNNED'){eState='STUNNED';eTimer=6;elizaSetStatus('STUNNED');}
           }
         }
@@ -10830,11 +10985,11 @@ function updateEliza(delta, t){
                 _esop.x+=(Math.random()-0.5)*3; _esop.z+=(Math.random()-0.5)*3;
                 _spawnSpiderling(_esop);
               }
-              elizaChat('Spider spawned '+_enSp+' spiderlings!');
+              _e1Say('Spider spawned '+_enSp+' spiderlings!','chat',{lastEvent:'cave spider spawned offspring',question:'Short reaction to enemy spawning offspring.'});
             }
             killCount++; if(killEl) killEl.textContent=killCount;
             elizaHP=Math.max(10,elizaHP-8); _eCurrentThreat=null;
-            elizaChat('Target down. Kill count: '+killCount+'.'); elizaSetStatus('PLANNING');
+            _e1Say('Target down. Kill count: '+killCount+'.','chat',{lastEvent:'killed enemy',question:'Short in-character line about defeating an enemy.'}); elizaSetStatus('PLANNING');
             eState='EXPLORE_WAIT'; eTimer=4;
           } else {
             _eCurrentThreat=null; elizaSetStatus('PLANNING');
@@ -10884,7 +11039,7 @@ function updateEliza(delta, t){
       createBurst(eg.position.clone().setY(1.0),0xff8800,55);
       createBurst(eg.position.clone().setY(0.5),0xff6600,30);
       createBurst(eg.position.clone().setY(1.8),0xffffff,25);
-      elizaSetStatus('RECOVERING'); elizaChat('Systems online. Back on duty.');
+      elizaSetStatus('RECOVERING'); _e1Say('Systems online. Back on duty.','chat',{lastEvent:'rebooted after death',question:'Short line about coming back online after being defeated.'});
       eState='EXPLORE_WAIT'; eTimer=3;
     }
 
@@ -10899,7 +11054,7 @@ function updateEliza(delta, t){
         eUpgradeTarget=eUpgT;
         eTarget.copy(eUpgT.pos);
         eState='UPGRADE_WALK'; elizaSetStatus('UPGRADING');
-        elizaChat('Upgrading the '+eUpgT.type+'.'); return;
+        _e1Say('Upgrading the '+eUpgT.type+'.','chat',{lastEvent:'upgrading '+eUpgT.type,question:'Brief comment on upgrading a structure.'}); return;
       }
       // Priority 2: rare resources if any structure needs upgrading
       var eAnyNeedUpg=false;
@@ -10914,7 +11069,7 @@ function updateEliza(delta, t){
           resourceNodes[eRareIdx].claimed=true;
           eTarget.copy(resourceNodes[eRareIdx].pos);
           eState='RARE_WALK'; elizaSetStatus('EXPEDITION');
-          elizaChat('Heading out for '+eRareType+'.'); return;
+          _e1Say('Heading out for '+eRareType+'.','chat',{lastEvent:'departing for '+eRareType,question:'Short line about heading out for rare resources.'}); return;
         }
       }
       // Priority 3: autonomous build
@@ -10927,7 +11082,7 @@ function updateEliza(delta, t){
           if(eBPosIdle){
             eBuildPos.copy(eBPosIdle); eBuildRot=Math.atan2(eBPosIdle.x,eBPosIdle.z);
             eTarget.copy(eBPosIdle); eState='BUILD_WALK'; elizaSetStatus('MOVING');
-            elizaChat('Building: '+eNextBuild); return;
+            _e1Say('Building: '+eNextBuild,'chat',{lastEvent:'starting build: '+eNextBuild,question:'Short line about starting to build '+eNextBuild+'.'}); return;
           }
         } else {
           var eNIdx=findFreeNode(eNeeded);
@@ -10935,7 +11090,7 @@ function updateEliza(delta, t){
             eGatherNodeIdx=eNIdx; resourceNodes[eNIdx].claimed=true;
             eCarryType=eNeeded; eTarget.copy(resourceNodes[eNIdx].pos);
             eState='GATHER_WALK'; elizaSetStatus('GATHERING');
-            elizaChat('Need '+_resName(eNeeded)+' for '+eNextBuild+'.'); return;
+            _e1Say('Need '+_resName(eNeeded)+' for '+eNextBuild+'.','chat',{lastEvent:'gathering '+_resName(eNeeded),question:'Short line about gathering resources.'}); return;
           }
         }
       }
@@ -10945,7 +11100,7 @@ function updateEliza(delta, t){
         if(_esr>FOG_WR-20) _esr=FOG_WR-20;
         eTarget.set(Math.cos(_esa)*_esr,0,Math.sin(_esa)*_esr);
         eState='SCOUT_WALK'; elizaSetStatus('SCOUTING');
-        elizaChat('Scout run.'); return;
+        _e1Say('Scout run.','chat',{lastEvent:'scouting',question:'Short line about heading out to scout.'}); return;
       }
       var ePOItarget=null;
       for(var epi=0;epi<worldPOIs.length;epi++){if(!worldPOIs[epi].discovered){ePOItarget=worldPOIs[epi];break;}}
@@ -10957,7 +11112,7 @@ function updateEliza(delta, t){
         if(_eptd>FOG_WR-10){ var _epts=(FOG_WR-10)/_eptd; _eptx*=_epts; _eptz*=_epts; }
         eTarget.set(_eptx,0,_eptz);
         eState='EXPLORE_WALK'; elizaSetStatus('EXPLORING');
-        elizaChat('Moving to: '+ePOItarget.name+'.');
+        _e1Say('Moving to: '+ePOItarget.name+'.','chat',{lastEvent:'exploring '+ePOItarget.name,question:'Short line about heading to explore a location called '+ePOItarget.name+'.'});
       } else { eTimer=10; }
     }
 
@@ -10987,7 +11142,7 @@ function updateEliza(delta, t){
         eExplorePOI.discovered=true;
         if(eExplorePOI.marker) eExplorePOI.marker.material.opacity=0.30;
         revealFog(eExplorePOI.x, eExplorePOI.z, 38);
-        elizaChat('Discovered: '+eExplorePOI.name+'.');
+        if(!ELIZA_BRAIN.onDiscovery(eExplorePOI.name)) _e1Say('Discovered: '+eExplorePOI.name+'.','chat',{lastEvent:'discovered '+eExplorePOI.name,question:'React to discovering '+eExplorePOI.name+'.'});
       }
       eState='EXPLORE_LINGER'; eTimer=18+Math.random()*14; elizaSetStatus('SCANNING');
     }
@@ -10999,7 +11154,7 @@ function updateEliza(delta, t){
     if(eTimer<=0){
       eTarget.set(-2,0,-2);
       eState='EXPLORE_RETURN'; elizaSetStatus('RETURNING');
-      elizaChat('Heading back.');
+      _e1Say('Heading back.','chat',{lastEvent:'leaving exploration site',question:'Short line about heading back to base.'});
     }
 
   } else if(eState==='EXPLORE_RETURN'){
@@ -11035,7 +11190,7 @@ function updateEliza(delta, t){
       ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0; ep.head.rotation.y=0;
       eState='SCOUT_SURVEY'; eTimer=12+Math.random()*8;
       revealFog(eg.position.x, eg.position.z, 42);
-      elizaChat('Survey point reached. Mapping.'); elizaSetStatus('SURVEYING');
+      _e1Say('Survey point reached. Mapping.','chat',{lastEvent:'arrived at scout point',question:'Short line about surveying the area.'}); elizaSetStatus('SURVEYING');
     }
 
   } else if(eState==='SCOUT_SURVEY'){
@@ -11050,8 +11205,8 @@ function updateEliza(delta, t){
           _eScoutFinds.push(worldPOIs[_espoi].name);
         }
       }
-      if(_eScoutFinds.length) elizaChat('Found: '+_eScoutFinds.join(', ')+'.');
-      else elizaChat(_ELIZA_THOUGHTS[Math.floor(Math.random()*_ELIZA_THOUGHTS.length)]);
+      if(_eScoutFinds.length) _e1Say('Found: '+_eScoutFinds.join(', ')+'.','chat',{lastEvent:'scout found locations',question:'React to finding new locations: '+_eScoutFinds.join(', ')+'.'});
+      else _e1Say(_ELIZA_THOUGHTS[Math.floor(Math.random()*_ELIZA_THOUGHTS.length)],'chat',{lastEvent:'nothing found scouting',question:'Short tactical observation while on patrol.'});
       _eStunInitDone=true;
     }
     eTimer-=delta;
@@ -11059,7 +11214,7 @@ function updateEliza(delta, t){
       _eStunInitDone=false;
       eTarget.set(-2,0,-2);
       eState='EXPLORE_RETURN'; elizaSetStatus('RETURNING');
-      elizaChat('Survey complete. Heading back.');
+      _e1Say('Survey complete. Heading back.','chat',{lastEvent:'scout survey complete',question:'Short line about finishing a survey and returning.'});
     }
 
   } else if(eState==='RARE_WALK'){
@@ -11072,7 +11227,7 @@ function updateEliza(delta, t){
     if(eRareNodeIdx<0||resourceNodes[eRareNodeIdx].depleted){
       var altERare=findFreeNode(eRareCarryType);
       if(altERare!==-1){eRareNodeIdx=altERare;resourceNodes[altERare].claimed=true;eTarget.copy(resourceNodes[altERare].pos);}
-      else{eState='EXPLORE_WAIT';eTimer=12;elizaChat('All '+eRareCarryType+' nodes depleted.');return;}
+      else{eState='EXPLORE_WAIT';eTimer=12;_e1Say('All '+eRareCarryType+' nodes depleted.','chat',{lastEvent:'rare depleted'});return;}
     }
     _etv1.set(eTarget.x+_eWanderOX,0,eTarget.z+_eWanderOZ).sub(eg.position); _etv1.y=0;
     _etv2.subVectors(eTarget,eg.position); _etv2.y=0;
@@ -11083,7 +11238,7 @@ function updateEliza(delta, t){
       ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0;
       ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0; ep.head.rotation.y=0;
       eState='RARE_GATHER'; eRareTimer=0;
-      elizaChat('Gathering '+eRareCarryType+'.');
+      _e1Say('Gathering '+eRareCarryType+'.','chat',{lastEvent:'arrived at '+eRareCarryType,question:'Short line about arriving at a rare resource node.'});
       createBurst(eg.position.clone().setY(0.8),0xff8800,14);
     }
 
@@ -11105,7 +11260,7 @@ function updateEliza(delta, t){
       }
       eRareCarrying=D_CARRY_RARE[eRareCarryType]||6; eRareNodeIdx=-1;
       createBurst(eg.position.clone().setY(0.8),0xff8800,22);
-      elizaChat('Gathered '+eRareCarrying+' '+eRareCarryType+'.');
+      _e1Say('Gathered '+eRareCarrying+' '+eRareCarryType+'.','chat',{lastEvent:'gathered '+eRareCarryType,question:'Short line about gathered rare resources, heading home.'});
       eTarget.set(-2,0,-2); eState='RARE_RETURN'; elizaSetStatus('RETURNING');
     }
 
@@ -11136,7 +11291,7 @@ function updateEliza(delta, t){
       res[eRareCarryType]=(res[eRareCarryType]||0)+eRareCarrying;
       eRareCarrying=0; updateResDisplay();
       ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
-      elizaChat('Stashed '+eRareCarryType+'. Stock: '+res[eRareCarryType]+'.');
+      _e1Say('Stashed '+eRareCarryType+'.','chat',{lastEvent:'deposited '+eRareCarryType,question:'Short comment on the haul.'}); _e1PrefetchAction();
       elizaSetStatus('PLANNING'); eState='EXPLORE_WAIT'; eTimer=2;
     }
 
@@ -11162,7 +11317,7 @@ function updateEliza(delta, t){
     if(eTimer<=0){
       if(eUpgradeTarget&&eUpgradeTarget.alive&&canUpgrade(eUpgradeTarget)){
         applyStructureUpgrade(eUpgradeTarget);
-        elizaChat('Upgraded: '+eUpgradeTarget.type+'.');
+        _e1Say('Upgraded: '+eUpgradeTarget.type+'.','chat',{lastEvent:'upgraded '+eUpgradeTarget.type,question:'Short comment on upgrading the structure.'});
       }
       ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
       eUpgradeTarget=null;
@@ -12903,6 +13058,7 @@ function animate() {
   _updateBuildProgress(delta);
   updatePOIDiscovery(delta);
   DESTINY_BRAIN.tick(delta);
+  if(_hasEliza) ELIZA_BRAIN.tick(delta);
   updateDungeonCamera(delta);
   // Pulse dungeon interior crystal glow
   for(var _di=0;_di<dungeonEntrances.length;_di++){
