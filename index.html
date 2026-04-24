@@ -487,26 +487,32 @@
   </div>
 </div>
 
-<!-- ── HUD: WORLD INFO (top-right, immersive) ───────────────────── -->
+<!-- ── HUD: RESOURCES (top-right, immersive) ───────────────────── -->
 <div id="hud-resources">
+  <div class="hud-res-row"><span class="hud-res-k">◈ $DESTINY</span><span class="hud-res-v" id="res-gold">100</span></div>
+  <div class="hud-res-row"><span class="hud-res-k">▲ WOOD</span><span class="hud-res-v" id="res-food">80</span></div>
+  <div class="hud-res-row"><span class="hud-res-k">◆ STONE</span><span class="hud-res-v" id="res-wood">0</span></div>
+  <div class="hud-res-row"><span class="hud-res-k hud-food-k">❧ FOOD</span><span class="hud-res-v hud-food-v" id="res-food-val">0</span></div>
+  <div class="hud-res-divider"></div>
+  <div class="hud-res-row"><span class="hud-res-k hud-rare-k">✦ LUMITE</span><span class="hud-res-v hud-rare-v" id="res-lumite">0</span></div>
+  <div class="hud-res-row"><span class="hud-res-k hud-iron-k">⬡ DEEPIRON</span><span class="hud-res-v hud-iron-v" id="res-deepiron">0</span></div>
+  <div class="hud-res-row"><span class="hud-res-k hud-anc-k">⬢ ANC.STONE</span><span class="hud-res-v hud-anc-v" id="res-ancstone">0</span></div>
+  <div class="hud-res-divider"></div>
   <div id="hud-status-row">⚡ <span id="res-status">IDLE</span></div>
-  <!-- hidden but kept so JS refs don't break -->
-  <span id="res-gold" style="display:none">100</span>
-  <span id="res-food" style="display:none">80</span>
-  <span id="res-wood" style="display:none">0</span>
-  <span id="res-food-val" style="display:none">0</span>
-  <span id="res-lumite" style="display:none">0</span>
-  <span id="res-deepiron" style="display:none">0</span>
-  <span id="res-ancstone" style="display:none">0</span>
 </div>
 
-<!-- ── HUD: COMBAT (bottom-left, immersive) ─────────── -->
+<!-- ── HUD: COMBAT / FORTRESS (bottom-left, immersive) ─────────── -->
 <div id="hud-combat">
+  <div id="hud-fortress-row">
+    <span id="hud-fortress-label">FORTRESS</span>
+    <span id="fh-pct">0%</span>
+    <div id="hud-fort-bar"><div id="fh-fill" style="width:0%"></div></div>
+  </div>
   <div id="wave-display">
     <span id="wave-num-label">THREATS: </span><span id="wave-num">—</span>
     <span id="kills-row"> &nbsp;·&nbsp; KILLS: <span id="kills-val">0</span></span>
   </div>
-  <div id="wave-info">SECTOR CLEAR</div>
+  <div id="wave-info">AWAITING FIRST THREAT</div>
 </div>
 
 <script src="three.min.js"></script>
@@ -10139,7 +10145,7 @@ function drawMinimap() {}
 
 var dGroup=null, dParts=null;
 var _tv1=new THREE.Vector3(), _tv2=new THREE.Vector3(); // reusable per-frame scratch vectors
-var dState='EXPLORE_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=2.0;
+var dState='BUILD_WAIT', dTarget=new THREE.Vector3(), dWalk=0, dTimer=0.5;
 var _introActive=false; // true during new-game intro — freezes game logic
 var _agentName='DESTINY-1';
 
@@ -10150,7 +10156,7 @@ var elizaHP=100, elizaMaxHP=100, elizaRegen=1.8;
 var eState='PATROL', eTarget=new THREE.Vector3(), eTimer=2.0, eWalk=0;
 var _eCurrentThreat=null, _eAtkCd=0, _ePatrolIdx=0;
 var _eHpBar=null, _eHpVal=null, _eStatusEl=null, _elizaNameplateEl=null;
-var dSeqIdx=BUILD_SEQUENCE.length, dBuildType='', dBuildPos=new THREE.Vector3(), dBuildRot=0;
+var dSeqIdx=0, dBuildType=BUILD_SEQUENCE[0], dBuildPos=new THREE.Vector3(), dBuildRot=0;
 var dCurrentThreat=null;
 var dArtPos=new THREE.Vector3(), dArtPick='';     // art walk destination + type
 var _pendingArtProject=null;                       // {x,z,pick} queued by creativity timer
@@ -11019,8 +11025,8 @@ window.addEventListener('beforeunload',function(){ if(!_tdResetting) _tdSave(); 
 // Load save or start fresh
 var _tdFreshStart=!_tdLoad();
 if(_tdFreshStart){
-  setStatus('EXPLORING');
-  destinyChat('World initialized. Surveying the territory.');
+  setStatus('PLANNING');
+  destinyChat('World initialized. Building home base first.');
 }
 
 // ── DESTINY state machine ─────────────────────────────────────────────
@@ -11275,7 +11281,7 @@ function updateDestiny(delta, t) {
       dCarrying=0; updateResDisplay();
       dParts.armLPivot.rotation.x=0; dParts.armRPivot.rotation.x=0;
       setStatus('PLANNING');
-      dState='EXPLORE_WAIT'; dTimer=1.2;
+      dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=1.2;
     }
 
   } else if(dState==='DEFEND_WALK'){
@@ -11285,7 +11291,7 @@ function updateDestiny(delta, t) {
       if(dParts.sword) dParts.sword.visible=false;
       dGroup.rotation.x=0; // reset combat lean
       setStatus('PLANNING');
-      dState='EXPLORE_WAIT'; dTimer=4; return;
+      dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=4; return;
     }
     dWalk+=delta*5.0; var sw2=Math.sin(dWalk)*0.52;
     dParts.legLPivot.rotation.x=sw2; dParts.legRPivot.rotation.x=-sw2;
@@ -11428,11 +11434,11 @@ function updateDestiny(delta, t) {
             destinyHP=Math.max(10,destinyHP-8); dCurrentThreat=null;
             if(dParts.sword) dParts.sword.visible=false;
             destinyChat('Neutralized. Kill count: '+killCount+'. Back to construction.'); setStatus('PLANNING');
-            dState='EXPLORE_WAIT'; dTimer=4;
+            dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=4;
           } else {
             // Enemy intercept (bone skeleton reassembling, etc.)
             dCurrentThreat=null; setStatus('PLANNING');
-            dState='EXPLORE_WAIT'; dTimer=2;
+            dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=2;
           }
         } else {
           destinyChat('Still standing. Finishing this.'); destinyHP=Math.max(10,destinyHP-5);
@@ -11440,7 +11446,7 @@ function updateDestiny(delta, t) {
         }
       } else {
         dCurrentThreat=null; destinyChat('Territory clear. Resuming work.'); setStatus('PLANNING');
-        dState='EXPLORE_WAIT'; dTimer=5;
+        dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=5;
       }
     }
 
@@ -11498,7 +11504,7 @@ function updateDestiny(delta, t) {
       createBurst(dGroup.position.clone().setY(1.8),0xffffff,25);
       _spawnDecisionRipple(0x00ff41);
       setStatus('RECOVERING'); destinyChat('Systems online. Back in action.');
-      dState='EXPLORE_WAIT'; dTimer=3;
+      dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=3;
     }
 
   } else if(dState==='EXPLORE_WAIT'){
@@ -11525,6 +11531,65 @@ function updateDestiny(delta, t) {
         dTarget.set(Math.cos(_aiSa)*_aiSr,0,Math.sin(_aiSa)*_aiSr);
         dState='SCOUT_WALK'; setStatus('SCOUTING');
         _d1Say('Scout run. Going far.','chat',{lastEvent:'ai chose scout',question:'Short line about scouting.'}); return;
+      }
+      // First priority: upgrade a structure if resources allow
+      var upgTarget=findUpgradeTarget();
+      if(upgTarget){
+        dUpgradeTarget=upgTarget;
+        dTarget.copy(upgTarget.pos);
+        dState='UPGRADE_WALK'; setStatus('UPGRADING');
+        _d1Say('Taking rare materials to upgrade the '+upgTarget.type+'.','chat',{lastEvent:'upgrading '+upgTarget.type,question:'Brief comment on the upgrade mission.'});
+        return;
+      }
+      // Second priority: go gather rare resources if structures still need upgrading
+      var anyNeedsUpgrade=false;
+      for(var ui=0;ui<structures.length;ui++){
+        var us=structures[ui]; if(us.alive&&!us.growing&&(us.level||1)<3){anyNeedsUpgrade=true;break;}
+      }
+      if(anyNeedsUpgrade){
+        var _aiRare=_D1_PENDING_RARE; _D1_PENDING_RARE=null;
+        var rareType=_aiRare||pickRareToGather();
+        var rareIdx=findFreeNode(rareType);
+        if(rareIdx!==-1){
+          dRareNodeIdx=rareIdx; dRareCarryType=rareType;
+          resourceNodes[rareIdx].claimed=true;
+          dTarget.copy(resourceNodes[rareIdx].pos);
+          dState='RARE_WALK'; setStatus('EXPEDITION');
+          var _rareFallbacks={
+            lumite:'Lumite runs low. Heading deep.',
+            deepIron:'DeepIron needed. Moving out.',
+            ancientStone:'The old megaliths. Going now.'
+          };
+          _d1Say(_rareFallbacks[rareType]||'Expedition underway.','chat',{lastEvent:'departing for '+rareType,question:'Short line about heading out for rare resources.'});
+          return;
+        }
+      }
+      // Check if autonomous build is possible / needs resources
+      var nextAutoIdle=pickAutonomousBuild();
+      if(nextAutoIdle&&BUILD_COSTS[nextAutoIdle]){
+        dBuildType=nextAutoIdle;
+        var neededIdle=resourceNeeded(nextAutoIdle);
+        if(!neededIdle){
+          var _bZoneIdle = _D1_PENDING_BUILD_ZONE; _D1_PENDING_BUILD_ZONE = null;
+          var bPosIdle=chooseBuildPos(nextAutoIdle, _bZoneIdle);
+          if(bPosIdle){
+            dBuildPos.copy(bPosIdle); dBuildRot=Math.atan2(bPosIdle.x,bPosIdle.z);
+            dTarget.copy(bPosIdle); dState='BUILD_WALK'; setStatus('MOVING');
+            personalityChat('startBuild',nextAutoIdle);
+            journalNote('🚶 Walking to build: '+nextAutoIdle,'🏗'); _spawnThoughtBubble('Building: '+nextAutoIdle);
+            return;
+          }
+        } else {
+          // Gather resources needed for autonomous build
+          var nIdxIdle=findFreeNode(neededIdle);
+          if(nIdxIdle!==-1){
+            dGatherNodeIdx=nIdxIdle; resourceNodes[nIdxIdle].claimed=true;
+            dCarryType=neededIdle; dTarget.copy(resourceNodes[nIdxIdle].pos);
+            dState='GATHER_WALK'; setStatus('GATHERING');
+            _d1Say('Need '+_resName(neededIdle)+' to build '+nextAutoIdle+'. Gathering now.','chat',{lastEvent:'gathering '+_resName(neededIdle)+' for '+nextAutoIdle,question:'Brief line about gathering resources to build.'});
+            return;
+          }
+        }
       }
       // Let brain suggest what to do when idle
       var brainIdle=DESTINY_BRAIN.idleAction();
