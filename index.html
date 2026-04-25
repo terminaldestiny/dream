@@ -8062,6 +8062,7 @@ var DESTINY_BRAIN = {
       var z=parts[1]?parts[1].trim().toLowerCase():'mid';
       _D1_PENDING_BUILD_ZONE = (['center','mid','edge'].indexOf(z)>=0)?z:'mid';
       journalNote('[DESTINY AI] → build: '+_D1_LAST_BUILD_RESP+' @ '+_D1_PENDING_BUILD_ZONE,'🏗');
+      _crossTalk(true, 'finished building a '+type);
     });
   },
   // Called when DESTINY is about to start an art project — AI picks type
@@ -8213,6 +8214,32 @@ function _e1Say(fallback, hook, extra) {
   });
 }
 
+// ── Inter-agent cross-talk ────────────────────────────────────────────
+var _CROSS_TALK_CD = 0;
+function _crossTalk(actorIsDestiny, eventDesc) {
+  if(_CROSS_TALK_CD > 0) return;
+  if(actorIsDestiny) {
+    if(!_E1_ONLINE || !elizaGroup || !_hasEliza) return;
+    _e1Think('react', {lastEvent:'partner DESTINY just: '+eventDesc, question:'React to your partner DESTINY in under 12 words.'}, function(resp){
+      if(resp) _elizaShowChat('[E1] '+resp);
+    });
+  } else {
+    if(!_D1_ONLINE || !dGroup || !_hasDestiny) return;
+    _d1Think('react', {lastEvent:'partner ELIZA just: '+eventDesc, question:'React to your partner ELIZA in under 12 words.'}, function(resp){
+      if(resp) destinyChat('[D1] '+resp);
+    });
+  }
+  _CROSS_TALK_CD = 40;
+}
+
+// ── Synergy: both agents attacking the same enemy = extra hit ─────────
+function _synergyActive(threat) {
+  if(!_hasDestiny || !_hasEliza || !dGroup || !elizaGroup) return false;
+  if(dState !== 'DEFEND_ATTACK' && dState !== 'DEFEND_WALK') return false;
+  if(eState !== 'DEFEND_ATTACK' && eState !== 'DEFEND_WALK') return false;
+  return dCurrentThreat === threat && _eCurrentThreat === threat;
+}
+
 function _e1PrefetchAction() {
   if(!_E1_ONLINE) return;
   var _anyUpgrade=false;
@@ -8270,6 +8297,7 @@ var ELIZA_BRAIN = {
         var t=resp.trim().toLowerCase().split(/\s/)[0];
         _E1_LAST_BUILD_RESP=t;
         journalNote('[ELIZA AI] → build: '+t,'🔧');
+        _crossTalk(false, 'finished building a '+type);
       }
     });
   },
@@ -10956,7 +10984,14 @@ function updateEliza(delta, t){
         // Deal damage
         var _eHitLanded=!_eCurrentThreat._invincible;
         if(_eHitLanded&&_eCurrentThreat._dmgReduce) _eHitLanded=Math.random()<_eCurrentThreat._dmgReduce;
-        if(_eHitLanded){ _sfxHit(); _eCurrentThreat.hp--; }
+        if(_eHitLanded){
+          _sfxHit(); _eCurrentThreat.hp--;
+          if(_synergyActive(_eCurrentThreat)){
+            _eCurrentThreat.hp--;
+            createBurst(_eCurrentThreat.group.position.clone().setY(1.2),0x44ffaa,20);
+            _spawnDmgNumber(_eCurrentThreat.group.position.clone().setY(2.6),'SYNERGY','#44ffaa');
+          }
+        }
         // Crystal golem shard burst
         if(_eHitLanded&&_eCurrentThreat.type==='crystalGolem'){
           if(!_eCurrentThreat._cgWin||_eCurrentThreat._cgWin<=0){_eCurrentThreat._cgHits=0;_eCurrentThreat._cgWin=5;}
@@ -10997,6 +11032,7 @@ function updateEliza(delta, t){
             }
             killCount++; if(killEl) killEl.textContent=killCount;
             elizaHP=Math.max(10,elizaHP-8); _eCurrentThreat=null;
+            _crossTalk(false, 'took down a '+(_edct.type||'threat')+' (kill #'+killCount+')');
             _e1Say('Target down. Kill count: '+killCount+'.','chat',{lastEvent:'killed enemy',question:'Short in-character line about defeating an enemy.'}); elizaSetStatus('PLANNING');
             eState='EXPLORE_WAIT'; eTimer=4;
           } else {
@@ -11017,6 +11053,7 @@ function updateEliza(delta, t){
     if(!_eStunInitDone){
       _eStunInitDone=true; _eDeathCount++;
       _eCurrentThreat=null;
+      _crossTalk(false, 'went down — stunned in combat, rebooting');
       createBurst(eg.position.clone().setY(1.0),0xff4400,55);
       createBurst(eg.position.clone().setY(0.3),0xff8800,30);
       createBurst(eg.position.clone().setY(1.8),0xffffff,20);
@@ -12130,7 +12167,14 @@ function updateDestiny(delta, t) {
         // Deal damage — check invincibility + damage reduction
         var _hitLanded=!dCurrentThreat._invincible;
         if(_hitLanded&&dCurrentThreat._dmgReduce) _hitLanded=Math.random()<dCurrentThreat._dmgReduce;
-        if(_hitLanded){ _sfxHit(); dCurrentThreat.hp--; }
+        if(_hitLanded){
+          _sfxHit(); dCurrentThreat.hp--;
+          if(_synergyActive(dCurrentThreat)){
+            dCurrentThreat.hp--;
+            createBurst(dCurrentThreat.group.position.clone().setY(1.2),0x44ffaa,20);
+            _spawnDmgNumber(dCurrentThreat.group.position.clone().setY(2.6),'SYNERGY','#44ffaa');
+          }
+        }
         // Crystal golem: shard burst when hit 3+ times within 5s
         if(_hitLanded&&dCurrentThreat.type==='crystalGolem'){
           if(!dCurrentThreat._cgWin||dCurrentThreat._cgWin<=0){dCurrentThreat._cgHits=0;dCurrentThreat._cgWin=5;}
@@ -12182,6 +12226,7 @@ function updateDestiny(delta, t) {
             killCount++; if(killEl) killEl.textContent=killCount;
             destinyHP=Math.max(10,destinyHP-8); dCurrentThreat=null;
             if(dParts.sword) dParts.sword.visible=false;
+            _crossTalk(true, 'took down a '+(_dct.type||'threat')+' (kill #'+killCount+')');
             destinyChat('Neutralized. Kill count: '+killCount+'. Back to construction.'); setStatus('PLANNING');
             dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=4;
           } else {
@@ -12204,6 +12249,7 @@ function updateDestiny(delta, t) {
     if(!_stunInitDone){
       _stunInitDone=true; _deathCount++;
       dCurrentThreat=null; // release combat lock
+      _crossTalk(true, 'went down — stunned in combat, needs to reboot');
       createBurst(dGroup.position.clone().setY(1.0),0xff0000,55);
       createBurst(dGroup.position.clone().setY(0.3),0xff6600,30);
       createBurst(dGroup.position.clone().setY(1.8),0xffffff,20);
@@ -13062,6 +13108,7 @@ function animate() {
   updateAlive(delta,t);
   updateDestiny(delta,t);
   if(_hasEliza) updateEliza(delta,t);
+  if(_CROSS_TALK_CD>0) _CROSS_TALK_CD-=delta;
   updateZoneBarriers(t);
   // World boundary guard — clamp DESTINY position, target, and recover from NaN
   if(dGroup){
