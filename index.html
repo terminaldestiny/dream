@@ -11358,17 +11358,15 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
   var _nano=_MOBILE||window.innerWidth<540; // true phones — full-width stacked layout
   var _selD=true, _selE=false; // selection state
 
-  // On mobile boot screen is hidden, so show overlay sooner; on desktop wait for boot to clear
-  var _ovDelay=_MOBILE?400:5050;
-
-  // Black overlay
+  // Black overlay — appears immediately at z:99, behind the boot screen (z:100).
+  // Game world is already covered when boot fades, so no flash of 3D scene.
   var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:998;pointer-events:all;font-family:"Courier New",monospace;';
-  setTimeout(function(){
-    document.body.appendChild(ov);
-    void ov.offsetWidth;
-    setTimeout(function(){ panel.style.opacity='1'; },100);
-  },_ovDelay);
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:99;pointer-events:all;font-family:"Courier New",monospace;';
+  document.body.appendChild(ov);
+
+  // Panel fades in after boot has fully cleared (or immediately on mobile where boot is hidden)
+  var _panelDelay=_MOBILE?400:5200;
+  setTimeout(function(){ panel.style.opacity='1'; },_panelDelay);
 
   // ── Agent selection panel ─────────────────────────────────────────
   var panel=document.createElement('div');
