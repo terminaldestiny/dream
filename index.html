@@ -10711,9 +10711,18 @@ function _elizaWanderSpeedMult(){
   return 0.80+Math.sin(_eWanderT*0.28)*0.14+Math.sin(_eWanderT*0.09)*0.08;
 }
 
+var _elizaStateTimer=0, _elizaLastState='';
 function updateEliza(delta, t){
   if(_introActive||!elizaGroup) return;
   var eg=elizaGroup, ep=elizaParts;
+
+  // Watchdog — if stuck in same state >50s, kick back to EXPLORE_WAIT
+  if(eState!==_elizaLastState){ _elizaLastState=eState; _elizaStateTimer=0; }
+  else { _elizaStateTimer+=delta; }
+  if(_elizaStateTimer>50&&eState!=='EXPLORE_LINGER'&&eState!=='STUNNED'&&eState!=='GATHERING'&&eState!=='RARE_GATHER'){
+    eState='EXPLORE_WAIT'; eTimer=2; _elizaStateTimer=0;
+    journalNote('[ELIZA] recovered from stuck state','⚠');
+  }
 
   // HP regen
   if(eState!=='STUNNED') elizaHP=Math.min(elizaMaxHP, elizaHP+elizaRegen*delta);
@@ -11128,7 +11137,7 @@ function updateEliza(delta, t){
             eBuildPos.copy(eBPosIdle); eBuildRot=Math.atan2(eBPosIdle.x,eBPosIdle.z);
             eTarget.copy(eBPosIdle); eState='BUILD_WALK'; elizaSetStatus('MOVING');
             _e1Say('Building: '+eNextBuild,'chat',{lastEvent:'starting build: '+eNextBuild,question:'Short line about starting to build '+eNextBuild+'.'}); return;
-          }
+          } else { eTimer=6; } // no position yet — retry after delay
         } else {
           var eNIdx=findFreeNode(eNeeded);
           if(eNIdx!==-1){
@@ -11136,7 +11145,7 @@ function updateEliza(delta, t){
             eCarryType=eNeeded; eTarget.copy(resourceNodes[eNIdx].pos);
             eState='GATHER_WALK'; elizaSetStatus('GATHERING');
             _e1Say('Need '+_resName(eNeeded)+' for '+eNextBuild+'.','chat',{lastEvent:'gathering '+_resName(eNeeded),question:'Short line about gathering resources.'}); return;
-          }
+          } else { eTimer=5; } // no free node yet — retry after delay
         }
       }
       // Priority 4: scout or explore
@@ -11213,8 +11222,8 @@ function updateEliza(delta, t){
       eg.position.add(_etv1); eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
     } else {
       ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0;
-      eState='EXPLORE_WAIT'; eTimer=30+Math.random()*20;
-      elizaSetStatus('IDLE');
+      eState='EXPLORE_WAIT'; eTimer=4+Math.random()*4;
+      elizaSetStatus('PLANNING');
     }
 
   } else if(eState==='SCOUT_WALK'){
