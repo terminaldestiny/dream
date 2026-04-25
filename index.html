@@ -11385,17 +11385,24 @@ function _updateElizaNameplate(){
 }
 dBuildPos.set(0,0,0); dTarget.set(0,0,0);
 
-// ── Intro sequence — always runs on every page load ───────────────────
+// ── Intro sequence ────────────────────────────────────────────────────
 (function(){
-  _introActive=true;
+  var _saveExists=false;
+  try{_saveExists=!!localStorage.getItem('td_dream_v1');}catch(e){}
+
+  if(_saveExists){
+    // Save found — skip deploy screen, release game after boot clears
+    setTimeout(function(){ _introActive=false; dTimer=0.5; }, _MOBILE?200:5200);
+    return;
+  }
+
+  // No save — run full deploy sequence
   dTimer=999;
 
   var _smol=window.innerWidth<900;
   var _nano=_MOBILE||window.innerWidth<540; // true phones — full-width stacked layout
 
-  // Pre-select agents from save so returning players see their previous team
   var _selD=true, _selE=false;
-  try{var _sv=JSON.parse(localStorage.getItem('td_dream_v1')||'null');if(_sv){_selD=(_sv.hasDestiny!==false);_selE=!!_sv.hasEliza;}}catch(e){}
 
   // Black overlay — appears immediately at z:99, behind the boot screen (z:100).
   // Game world is already covered when boot fades, so no flash of 3D scene.
