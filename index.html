@@ -10498,7 +10498,8 @@ function destinyChat(msg){
 function showThought(text){ destinyChat(text); } // legacy alias → chat
 function hideThought(){} // no-op
 function updateDestinyHP(delta){
-  if(dState!=='STUNNED') destinyHP=Math.min(destinyMaxHP,destinyHP+destinyRegen*delta);
+  var _dInCombat=dState==='DEFEND_WALK'||dState==='DEFEND_ATTACK';
+  if(dState!=='STUNNED'&&!_dInCombat) destinyHP=Math.min(destinyMaxHP,destinyHP+destinyRegen*delta);
   var pct=Math.round((destinyHP/destinyMaxHP)*100);
   if(dHpBar) dHpBar.style.width=pct+'%';
   if(dHpVal) dHpVal.textContent=Math.round(destinyHP);
@@ -10725,7 +10726,8 @@ function updateEliza(delta, t){
   }
 
   // HP regen
-  if(eState!=='STUNNED') elizaHP=Math.min(elizaMaxHP, elizaHP+elizaRegen*delta);
+  var _eInCombat=eState==='DEFEND_WALK'||eState==='DEFEND_ATTACK';
+  if(eState!=='STUNNED'&&!_eInCombat) elizaHP=Math.min(elizaMaxHP, elizaHP+elizaRegen*delta);
   var ePct=Math.round((elizaHP/elizaMaxHP)*100);
   if(_eHpBar) _eHpBar.style.width=ePct+'%';
   if(_eHpVal) _eHpVal.textContent=Math.round(elizaHP);
