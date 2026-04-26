@@ -8349,30 +8349,31 @@ var waveInfoEl=document.getElementById('wave-info');
 
 function updateThreatSpawner(delta){
   if(_introActive) return;
-  // First frame: spawn territory enemies already present when Destiny arrives
+  // First frame: spawn territory enemies only on fresh game, not on save-load
   if(!_initialEnemiesSpawned){
     _initialEnemiesSpawned=true;
-    var _iTypes=['goblinScout','forestRanger','goblinScout','tribeSoldier'];
-    for(var _ii=0;_ii<_iTypes.length;_ii++){
-      var _ia=(_ii*Math.PI*0.5)+Math.random()*0.7-0.35;
-      var _ir=12+Math.random()*6;
-      var _ihp=new THREE.Vector3(Math.cos(_ia)*_ir,0,Math.sin(_ia)*_ir);
-      var _idf=null;
-      for(var _ij=0;_ij<_NATIVE_TYPES.length;_ij++) if(_NATIVE_TYPES[_ij].type===_iTypes[_ii]){_idf=_NATIVE_TYPES[_ij];break;}
-      if(!_idf) _idf=_NATIVE_TYPES[0];
-      var _igrp=new THREE.Group(); var _ibb=_idf.builder(_igrp);
-      // Add name-tag sprite (same as spawnThreat)
-      var _itex=_NT[_idf.type]||_NT['goblinScout'];
-      var _ispr=new THREE.Sprite(new THREE.SpriteMaterial({map:_itex,transparent:true,blending:THREE.AdditiveBlending}));
-      _ispr.scale.set(5.6,1.05,1); _ispr.position.y=_idf.sc*2.8+0.8; _igrp.add(_ispr);
-      _igrp.scale.setScalar(_idf.sc); _igrp.position.copy(_ihp); scene.add(_igrp);
-      threats.push({group:_igrp,glowMat:_ibb.glowMat,shell:_ibb.shell,shell2:_ibb.shell2,
-        weapon:_ibb.weapon,gRing:_ibb.gRing,pos:_ihp.clone(),
-        alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
-        hp:_idf.hp,maxHp:_idf.hp,type:_idf.type,rank:_idf.rank,speedMult:_idf.spd,
-        walkPhase:Math.random()*Math.PI*2,homePos:_ihp.clone(),patrolTarget:_ihp.clone(),
-        nState:'PATROL',alertRange:_idf.alertR,alertTimer:0,atkCooldown:0,
-        atkRate:3.6,atkDmg:4,chargeTimer:0});
+    if(_tdFreshStart){
+      var _iTypes=['goblinScout','forestRanger','goblinScout','tribeSoldier'];
+      for(var _ii=0;_ii<_iTypes.length;_ii++){
+        var _ia=(_ii*Math.PI*0.5)+Math.random()*0.7-0.35;
+        var _ir=12+Math.random()*6;
+        var _ihp=new THREE.Vector3(Math.cos(_ia)*_ir,0,Math.sin(_ia)*_ir);
+        var _idf=null;
+        for(var _ij=0;_ij<_NATIVE_TYPES.length;_ij++) if(_NATIVE_TYPES[_ij].type===_iTypes[_ii]){_idf=_NATIVE_TYPES[_ij];break;}
+        if(!_idf) _idf=_NATIVE_TYPES[0];
+        var _igrp=new THREE.Group(); var _ibb=_idf.builder(_igrp);
+        var _itex=_NT[_idf.type]||_NT['goblinScout'];
+        var _ispr=new THREE.Sprite(new THREE.SpriteMaterial({map:_itex,transparent:true,blending:THREE.AdditiveBlending}));
+        _ispr.scale.set(5.6,1.05,1); _ispr.position.y=_idf.sc*2.8+0.8; _igrp.add(_ispr);
+        _igrp.scale.setScalar(_idf.sc); _igrp.position.copy(_ihp); scene.add(_igrp);
+        threats.push({group:_igrp,glowMat:_ibb.glowMat,shell:_ibb.shell,shell2:_ibb.shell2,
+          weapon:_ibb.weapon,gRing:_ibb.gRing,pos:_ihp.clone(),
+          alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
+          hp:_idf.hp,maxHp:_idf.hp,type:_idf.type,rank:_idf.rank,speedMult:_idf.spd,
+          walkPhase:Math.random()*Math.PI*2,homePos:_ihp.clone(),patrolTarget:_ihp.clone(),
+          nState:'PATROL',alertRange:_idf.alertR,alertTimer:0,atkCooldown:0,
+          atkRate:3.6,atkDmg:4,chargeTimer:0});
+      }
     }
   }
   var aliveCount=0;
