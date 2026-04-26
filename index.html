@@ -7903,6 +7903,8 @@ var _D1_LAST_BUILD_RESP = null; // last AI-chosen build type
 var _D1_PENDING_BUILD_ZONE = null; // 'center'|'mid'|'edge' from AI
 var _D1_LAST_CHAT_MS = 0; // timestamp of last AI chat line shown
 var _D1_CHAT_GAP_MS = 150000; // minimum 150s between AI chat messages
+var _destinyMemory = []; // rolling last-3 AI lines for context
+var _elizaMemory   = []; // rolling last-3 AI lines for context
 
 // Helper: collect current world state delta for the API
 function _d1State(extra) {
@@ -7918,7 +7920,8 @@ function _d1State(extra) {
     health: Math.round(destinyHP||100) + '/' + (destinyMaxHP||100),
     mood: destinyMind.mood||'calm',
     kills: killCount,
-    partner: _hasEliza && elizaGroup ? { name:'ELIZA', health: Math.round(elizaHP||100)+'/'+elizaMaxHP, status: eState } : null
+    partner: _hasEliza && elizaGroup ? { name:'ELIZA', health: Math.round(elizaHP||100)+'/'+elizaMaxHP, status: eState } : null,
+    recentSaid: _destinyMemory.length ? _destinyMemory.slice() : undefined
   };
   if(extra) for(var k in extra) s[k]=extra[k];
   return s;
@@ -8177,7 +8180,8 @@ function _e1State(extra) {
     threats: threats.filter(function(th){return th.alive&&!th.dissolving;}).map(function(th){return th.type||'unknown';}),
     health: Math.round(elizaHP||100)+'/'+elizaMaxHP,
     status: eState,
-    partner: _hasDestiny && dGroup ? { name:'DESTINY', health: Math.round(destinyHP||100)+'/'+(destinyMaxHP||100), status: dState } : null
+    partner: _hasDestiny && dGroup ? { name:'DESTINY', health: Math.round(destinyHP||100)+'/'+(destinyMaxHP||100), status: dState } : null,
+    recentSaid: _elizaMemory.length ? _elizaMemory.slice() : undefined
   };
   if(extra) for(var k in extra) s[k]=extra[k];
   return s;
@@ -10486,6 +10490,7 @@ function destinyChat(msg){
   var ts=('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
   // Strip [D1] prefix for display — clean output
   var displayMsg = msg ? msg.replace(/^\[D1\]\s*/,'') : msg;
+  _destinyMemory.push(displayMsg); if(_destinyMemory.length>3) _destinyMemory.shift();
   var line=document.createElement('div'); line.className='chat-line';
   line.innerHTML='<span class="chat-ts">['+ts+']</span><span class="chat-name">'+_agentName+':</span><span class="chat-msg"> '+displayMsg+'</span>';
   chatLogEl.appendChild(line); chatLogEl.scrollTop=chatLogEl.scrollHeight;
@@ -10689,6 +10694,7 @@ function _elizaShowChat(msg){
   var now=new Date();
   var ts=('0'+now.getMinutes()).slice(-2)+':'+('0'+now.getSeconds()).slice(-2);
   var displayMsg=msg?msg.replace(/^\[E1\]\s*/,''):msg;
+  _elizaMemory.push(displayMsg); if(_elizaMemory.length>3) _elizaMemory.shift();
   var line=document.createElement('div'); line.className='chat-line';
   line.innerHTML='<span class="chat-ts">['+ts+']</span><span class="chat-name" style="color:#ff8800">ELIZA:</span><span class="chat-msg"> '+displayMsg+'</span>';
   chatLogEl.appendChild(line); chatLogEl.scrollTop=chatLogEl.scrollHeight;

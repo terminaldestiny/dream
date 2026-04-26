@@ -43,6 +43,7 @@ function buildUserMsg(state) {
   if (state.lastEvent) parts.push('LAST_EVENT: ' + state.lastEvent);
   if (state.context)   parts.push('CONTEXT: '   + state.context);
   if (state.question)  parts.push('QUESTION: '  + state.question);
+  if (state.recentSaid && state.recentSaid.length) parts.push('RECENTLY_SAID: ' + state.recentSaid.map(function(s){ return '"'+s+'"'; }).join(' | '));
   return parts.join('\n');
 }
 
