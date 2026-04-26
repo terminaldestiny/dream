@@ -2072,6 +2072,7 @@ var tcGroup = null;
 var tcGlowMat = null;
 var tcS=null, tcUpgradeQueue=[], tcUpTimer=0;
 var TC_UP_INTERVAL_MIN=90, TC_UP_INTERVAL_MAX=150;
+var _tcUpgDone=0; // how many upgrade phases have been revealed (saved/restored)
 
 function updateTownCenterUpgrades(delta){
   if(tcUpgradeQueue.length===0) return;
@@ -2079,6 +2080,7 @@ function updateTownCenterUpgrades(delta){
   if(tcUpTimer<=0){
     var nextPhase=tcUpgradeQueue.shift();
     nextPhase.visible=true;
+    _tcUpgDone++;
     createBurst(new THREE.Vector3(0,2,0),destinyMind.theme.wire,20);
     tcUpTimer=TC_UP_INTERVAL_MIN+Math.random()*(TC_UP_INTERVAL_MAX-TC_UP_INTERVAL_MIN);
     var upMsgs=[
@@ -5379,10 +5381,10 @@ function deductUpgradeCost(s){
 }
 
 // Place upgrade decorations onto an existing structure group
-function applyStructureUpgrade(s){
+function applyStructureUpgrade(s,opts){
   if(!s||!s.alive) return;
   var lv=s.level||1;
-  deductUpgradeCost(s);
+  if(!opts||!opts.silent) deductUpgradeCost(s);
   s.level=lv+1;
   var g=s.group;
   var P=randPalette();
@@ -5422,7 +5424,7 @@ function applyStructureUpgrade(s){
     for(var fi=0;fi<4;fi++) dg.add(mk(new THREE.SphereBufferGeometry(0.06,5,4),
       new THREE.MeshBasicMaterial({color:[0x44cc44,0x66cc22,0xcc4444,0xccaa00][fi]}),
       -0.9+fi*0.14-0.21,0.22,0.5));
-    destinyChat('Level 2 upgrade applied to '+s.type+'. Banners up, lanterns lit.');
+    if(!opts||!opts.silent) destinyChat('Level 2 upgrade applied to '+s.type+'. Banners up, lanterns lit.');
   } else {
     // Level 3: Trophy, crystal inlay, mystical art, enhanced glow
     // Central trophy/totem above building
@@ -5452,7 +5454,7 @@ function applyStructureUpgrade(s){
       dg.add(mk(new THREE.BoxBufferGeometry(0.22,0.55,0.16),sSt(0xbbaa88),rx,0.28,-0.85));
       dg.add(mk(new THREE.BoxBufferGeometry(0.12,0.18,0.10),sSt(0xddcc88),rx,0.60,-0.85));
     }
-    destinyChat('[ LV3 ] '+s.type.toUpperCase()+' fully upgraded. This took real effort.');
+    if(!opts||!opts.silent) destinyChat('[ LV3 ] '+s.type.toUpperCase()+' fully upgraded. This took real effort.');
   }
   g.add(dg);
   // Update the inspect info to reflect new level
@@ -5465,8 +5467,7 @@ function applyStructureUpgrade(s){
       break;
     }
   }
-  // Brief burst effect at structure
-  createBurst(s.pos.clone().setY(h*0.5),P.mGl.color,30);
+  if(!opts||!opts.silent) createBurst(s.pos.clone().setY(h*0.5),P.mGl.color,30);
   rebuildNetworkLines();
 }
 
@@ -11702,6 +11703,7 @@ function _tdSave(){
     elizaHP:Math.round(elizaHP),
     killCount:killCount,
     dSeqIdx:dSeqIdx,
+    tcUpgDone:_tcUpgDone,
     pois:worldPOIs.map(function(p){return p.discovered;}),
     art:_artLog.slice(-80),
     structs:structures.filter(function(s){return s.alive&&!s.dissolving;}).map(function(s){
@@ -11774,7 +11776,12 @@ function _tdLoad(){
         if(sd.type==='chickenCoop') registerFoodProducer('chickenCoop');
         if(sd.type==='orchard') registerFoodProducer('orchard');
         if(sd.type==='vegetableGarden') registerFoodProducer('vegetableGarden');
+        if(sd.type==='granary') registerFoodProducer('granary');
         if(sd.type==='ballista'){var bl=structures[structures.length-1];if(bl){var _bPiv=null;bl.group.traverse(function(c){if(c.isGroup&&Math.abs(c.position.y-1.0)<0.05) _bPiv=c;});ballistaList.push({group:bl.group,pivot:_bPiv,cooldown:0,range:22,pos:pos.clone()});}}
+        // Re-apply level upgrade decorations silently (resources already spent)
+        if(sd.level&&sd.level>1){
+          for(var _li=1;_li<sd.level;_li++) applyStructureUpgrade(s,{silent:true});
+        }
       }
     });
   }
@@ -11796,6 +11803,16 @@ function _tdLoad(){
     _elizaNameplateEl=document.getElementById('eliza-nameplate');
     var _eb=document.getElementById('eliza-hud-block');
     if(_eb) _eb.style.display='block';
+  }
+
+  // Restore town center upgrade phases that had already been revealed
+  if(data.tcUpgDone && data.tcUpgDone > 0 && tcUpgradeQueue.length > 0){
+    var _toReveal=Math.min(data.tcUpgDone, tcUpgradeQueue.length);
+    for(var _tci=0;_tci<_toReveal;_tci++){
+      var _tph=tcUpgradeQueue.shift();
+      _tph.visible=true;
+      _tcUpgDone++;
+    }
   }
 
   var offlineMins=Math.round(offlineMs/60000);
