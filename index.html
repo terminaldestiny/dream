@@ -7372,7 +7372,7 @@ function _updateDestinyTracker(){
   var _ex=_cx+Math.cos(_ang)*_edge, _ey=_cy+Math.sin(_ang)*_edge;
   _ex=Math.max(60,Math.min(window.innerWidth-80,_ex));
   _ey=Math.max(40,Math.min(window.innerHeight-40,_ey));
-  var _arrowChar=['↗','→','↘','↓','↙','←','↖','↑'][Math.round(((_ang+Math.PI)/(Math.PI*2))*8)%8];
+  var _arrowChar=['←','↖','↑','↗','→','↘','↓','↙'][Math.round(((_ang+Math.PI)/(Math.PI*2))*8)%8];
   _destinyTrackerEl.textContent=_arrowChar+' DESTINY '+Math.round(_dist)+'u';
   _destinyTrackerEl.style.display='block';
   _destinyTrackerEl.style.left=_ex+'px';
@@ -7396,7 +7396,7 @@ function _updateElizaTracker(){
   var _ex=_cx+Math.cos(_ang)*_edge, _ey=_cy+Math.sin(_ang)*_edge;
   _ex=Math.max(60,Math.min(window.innerWidth-80,_ex));
   _ey=Math.max(40,Math.min(window.innerHeight-40,_ey));
-  var _arrowChar=['↗','→','↘','↓','↙','←','↖','↑'][Math.round(((_ang+Math.PI)/(Math.PI*2))*8)%8];
+  var _arrowChar=['←','↖','↑','↗','→','↘','↓','↙'][Math.round(((_ang+Math.PI)/(Math.PI*2))*8)%8];
   _elizaTrackerEl.textContent=_arrowChar+' ELIZA '+Math.round(_dist)+'u';
   _elizaTrackerEl.style.display='block';
   _elizaTrackerEl.style.left=_ex+'px';
