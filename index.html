@@ -11048,7 +11048,7 @@ function updateEliza(delta, t){
               _e1Say('Spider spawned '+_enSp+' spiderlings!','chat',{lastEvent:'cave spider spawned offspring',question:'Short reaction to enemy spawning offspring.'});
             }
             killCount++; if(killEl) killEl.textContent=killCount;
-            elizaHP=Math.max(10,elizaHP-8); _eCurrentThreat=null;
+            _eCurrentThreat=null;
             _crossTalk(false, 'took down a '+(_edct.type||'threat')+' (kill #'+killCount+')');
             _e1Say('Target down. Kill count: '+killCount+'.','chat',{lastEvent:'killed enemy',question:'Short in-character line about defeating an enemy.'}); elizaSetStatus('PLANNING');
             eState='EXPLORE_WAIT'; eTimer=4;
@@ -11057,7 +11057,6 @@ function updateEliza(delta, t){
             eState='EXPLORE_WAIT'; eTimer=2;
           }
         } else {
-          elizaHP=Math.max(10,elizaHP-5);
           eState='DEFEND_WALK'; eTimer=0;
         }
       } else {
@@ -12248,7 +12247,7 @@ function updateDestiny(delta, t) {
               destinyChat('Cave spider spawned '+_nSp+' spiderlings!');
             }
             killCount++; if(killEl) killEl.textContent=killCount;
-            destinyHP=Math.max(10,destinyHP-8); dCurrentThreat=null;
+            dCurrentThreat=null;
             if(dParts.sword) dParts.sword.visible=false;
             _crossTalk(true, 'took down a '+(_dct.type||'threat')+' (kill #'+killCount+')');
             destinyChat('Neutralized. Kill count: '+killCount+'. Back to construction.'); setStatus('PLANNING');
@@ -12259,7 +12258,6 @@ function updateDestiny(delta, t) {
             dState=(dSeqIdx>=BUILD_SEQUENCE.length)?'EXPLORE_WAIT':'BUILD_WAIT'; dTimer=2;
           }
         } else {
-          destinyChat('Still standing. Finishing this.'); destinyHP=Math.max(10,destinyHP-5);
           dState='DEFEND_WALK'; dTimer=0;
         }
       } else {
