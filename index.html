@@ -391,6 +391,7 @@
 <div id="eliza-nameplate" style="position:fixed;pointer-events:none;z-index:40;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;color:#ff8800;text-shadow:0 0 8px #ff8800aa;transform:translateX(-50%);display:none;">ELIZA</div>
 <div id="build-progress-container" style="position:fixed;top:0;left:0;pointer-events:none;z-index:38;"></div>
 <div id="destiny-tracker" style="display:none;position:fixed;z-index:30;pointer-events:none;font-family:monospace;font-size:11px;color:#00ff88;text-shadow:0 0 6px #00ff88;background:rgba(0,0,0,0.55);border:1px solid #00ff8855;padding:3px 7px;border-radius:3px;">▶ DESTINY</div>
+<div id="eliza-tracker" style="display:none;position:fixed;z-index:30;pointer-events:none;font-family:monospace;font-size:11px;color:#ff8800;text-shadow:0 0 6px #ff8800;background:rgba(0,0,0,0.55);border:1px solid #ff880055;padding:3px 7px;border-radius:3px;">▶ ELIZA</div>
 <div id="header">
   <h1>TERMINAL DESTINY</h1>
   <div class="sub" id="sub-text">// INITIALIZING WORLD MATRIX //</div>
@@ -7263,6 +7264,7 @@ function updateEffects(delta) {
 // ── Floating damage/hit label (DOM overlay) ───────────────────────────
 var _dmgLabels=[];
 var _destinyTrackerEl=document.getElementById('destiny-tracker');
+var _elizaTrackerEl=document.getElementById('eliza-tracker');
 function _spawnDmgNumber(worldPos, label, col) {
   if(_dmgLabels.length>=12) return; // cap DOM overlay count
   var el=document.createElement('div');
@@ -7375,6 +7377,30 @@ function _updateDestinyTracker(){
   _destinyTrackerEl.style.display='block';
   _destinyTrackerEl.style.left=_ex+'px';
   _destinyTrackerEl.style.top=_ey+'px';
+}
+
+// ELIZA off-screen tracker
+function _updateElizaTracker(){
+  if(!elizaGroup||!_elizaTrackerEl) return;
+  var _ep=elizaGroup.position;
+  var _dist=Math.sqrt(_ep.x*_ep.x+_ep.z*_ep.z);
+  if(_dist<18){ _elizaTrackerEl.style.display='none'; return; }
+  var _sv2=_ep.clone().project(camera);
+  var _sx2=(_sv2.x*0.5+0.5)*window.innerWidth;
+  var _sy2=(1-(_sv2.y*0.5+0.5))*window.innerHeight;
+  var _inScreen=(_sx2>0&&_sx2<window.innerWidth&&_sy2>0&&_sy2<window.innerHeight);
+  if(_inScreen){ _elizaTrackerEl.style.display='none'; return; }
+  var _cx=window.innerWidth/2, _cy=window.innerHeight/2;
+  var _ang=Math.atan2(_sy2-_cy,_sx2-_cx);
+  var _edge=Math.min(window.innerWidth,window.innerHeight)*0.42;
+  var _ex=_cx+Math.cos(_ang)*_edge, _ey=_cy+Math.sin(_ang)*_edge;
+  _ex=Math.max(60,Math.min(window.innerWidth-80,_ex));
+  _ey=Math.max(40,Math.min(window.innerHeight-40,_ey));
+  var _arrowChar=['↗','→','↘','↓','↙','←','↖','↑'][Math.round(((_ang+Math.PI)/(Math.PI*2))*8)%8];
+  _elizaTrackerEl.textContent=_arrowChar+' ELIZA '+Math.round(_dist)+'u';
+  _elizaTrackerEl.style.display='block';
+  _elizaTrackerEl.style.left=_ex+'px';
+  _elizaTrackerEl.style.top=_ey+'px';
 }
 
 // ── DESTINY nameplate — floats above her head ─────────────────────────
@@ -10400,32 +10426,33 @@ function getGameSpeed(){ return _gameSpeed; }
 
 // ── FOLLOW-CAM ────────────────────────────────────────────────────────
 var _followCam=false;
+var _followTarget='none'; // 'none' | 'destiny' | 'eliza'
 var _btnFollow=document.getElementById('btn-follow');
-var _followOffset=new THREE.Vector3(0,6,12);
 function toggleFollowCam(){
-  _followCam=!_followCam;
+  var _modes=['none'];
+  if(_hasDestiny&&dGroup) _modes.push('destiny');
+  if(_hasEliza&&elizaGroup) _modes.push('eliza');
+  var _cur=_modes.indexOf(_followTarget);
+  _followTarget=_modes[(_cur+1)%_modes.length];
+  _followCam=(_followTarget!=='none');
   if(_btnFollow){
-    _btnFollow.textContent=_followCam?'◉ AGENT VIEW':'◎ FREE';
+    if(_followTarget==='destiny') _btnFollow.textContent='◉ DESTINY';
+    else if(_followTarget==='eliza') _btnFollow.textContent='◉ ELIZA';
+    else _btnFollow.textContent='◎ FREE';
     _btnFollow.classList.toggle('active',_followCam);
   }
-  if(!_followCam){
-    // restore orbit controls
-    controls.enabled=true;
-    controls.autoRotate=false;
-  } else {
-    controls.enabled=false;
-    controls.autoRotate=false;
-  }
+  controls.enabled=!_followCam;
+  controls.autoRotate=false;
 }
 function _updateFollowCam(){
-  if(!_followCam||!dGroup) return;
-  var tp=dGroup.position;
-  // Orbit behind destiny based on its facing direction
-  var facing=new THREE.Vector3(Math.sin(dGroup.rotation.y),0,Math.cos(dGroup.rotation.y));
+  if(!_followCam) return;
+  var _tg=(_followTarget==='eliza'&&elizaGroup)?elizaGroup:(_followTarget==='destiny'&&dGroup)?dGroup:null;
+  if(!_tg) return;
+  var tp=_tg.position;
+  var facing=new THREE.Vector3(Math.sin(_tg.rotation.y),0,Math.cos(_tg.rotation.y));
   var behind=facing.clone().multiplyScalar(-10).add(tp).add(new THREE.Vector3(0,6,0));
   camera.position.lerp(behind,0.06);
-  var lookAt=tp.clone().add(new THREE.Vector3(0,2,0));
-  camera.lookAt(lookAt);
+  camera.lookAt(tp.clone().add(new THREE.Vector3(0,2,0)));
 }
 
 // ── JOURNAL ───────────────────────────────────────────────────────────
@@ -13177,6 +13204,7 @@ function animate() {
   _updateDmgLabels(delta);
   _updateThoughtBubbles(delta);
   _updateDestinyTracker();
+  if(_hasEliza) _updateElizaTracker();
   _updateNameplate();
   if(_hasEliza) _updateElizaNameplate();
   _updateBuildProgress(delta);
