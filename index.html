@@ -84,14 +84,33 @@
 
     #boot {
       position: fixed; inset: 0; background: #000;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      z-index: 100; font-size: 14px; letter-spacing: 2px; line-height: 2.1;
-      transition: opacity 1s ease;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; font-family: 'Courier New', monospace;
+      transition: opacity 0.7s ease;
     }
     #boot.fade-out { opacity: 0; pointer-events: none; }
-    #boot .bl { opacity: 0; animation: bline 0.3s forwards; }
-    @keyframes bline { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:translateX(0); } }
-    #cur { display:inline-block; width:8px; height:14px; background:#00ff41; vertical-align:middle; animation: blink 0.7s step-end infinite; }
+    #boot-title {
+      font-size: 42px; letter-spacing: 12px; color: #00bef0; line-height: 1.18;
+      text-shadow: 0 0 40px #00bef0, 0 0 90px #00bef044, 0 0 140px #00bef011;
+      animation: bootGlitch 2.4s ease-in-out;
+      margin-bottom: 16px; text-align: center;
+    }
+    #boot-hr {
+      height: 1px; background: linear-gradient(90deg, transparent, #00bef0cc, transparent);
+      margin: 0 0 18px; transform: scaleX(0); transform-origin: left;
+      animation: bootScan 0.5s 0.25s ease-out forwards;
+    }
+    @keyframes bootScan { to { transform: scaleX(1); } }
+    @keyframes bootGlitch {
+      0%,80%,100% { transform: none; color: #00bef0; filter: none; }
+      81% { transform: translateX(-5px) skewX(-3deg); color: #ff2200; filter: blur(1px); }
+      82% { transform: translateX(5px) skewX(2deg); color: #00ff88; filter: none; }
+      83% { transform: none; color: #00bef0; }
+    }
+    #boot-lines { font-size: 11px; letter-spacing: 3px; color: #00ff4199; line-height: 2.2; }
+    #boot-lines .bl { opacity: 0; animation: bline 0.12s forwards; }
+    @keyframes bline { to { opacity: 1; } }
+    #cur { display:inline-block; width:8px; height:13px; background:#00ff41; vertical-align:middle; animation: blink 0.6s step-end infinite; }
     @keyframes blink { 50% { opacity:0; } }
 
     #threat-flash { position: fixed; inset: 0; z-index: 25; pointer-events: none; border: 3px solid rgba(255,34,0,0); transition: border-color 0.15s; }
@@ -371,15 +390,10 @@
 
 <!-- ── BOOT ────────────────────────────────────────────────────── -->
 <div id="boot">
-  <div style="text-align:left;width:460px;">
-    <div class="bl" style="animation-delay:0.1s;color:#ffb000;">TERMINAL DESTINY DREAM v0.4.0</div>
-    <div class="bl" style="animation-delay:0.5s;">Initializing world matrix...</div>
-    <div class="bl" style="animation-delay:0.9s;">Constructing town center...<span style="color:#00bef0"> OK</span></div>
-    <div class="bl" style="animation-delay:1.3s;">Loading terrain shaders...<span style="color:#00bef0"> OK</span></div>
-    <div class="bl" style="animation-delay:1.8s;">Deploying DESTINY...<span style="color:#00bef0"> OK</span></div>
-    <div class="bl" style="animation-delay:2.3s;">Threat detection online...<span style="color:#ff2200"> ARMED</span></div>
-    <div class="bl" style="animation-delay:2.8s;">Calibrating neon grid...<span style="color:#00bef0"> OK</span></div>
-    <div class="bl" style="animation-delay:3.2s;color:#00ff41;">WORLD ONLINE <span id="cur"></span></div>
+  <div style="width:460px;">
+    <div id="boot-title">TERMINAL<br>DESTINY</div>
+    <div id="boot-hr"></div>
+    <div id="boot-lines"></div>
   </div>
 </div>
 
@@ -535,14 +549,25 @@ var _MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.in
 if(_MOBILE) document.getElementById('mobile-warning').style.display='flex';
 
 // ── BOOT TIMING ──────────────────────────────────────────────────────
-setTimeout(function () {
-  document.getElementById('boot').classList.add('fade-out');
-  setTimeout(function () {
-    var b = document.getElementById('boot');
-    if (b.parentNode) b.parentNode.removeChild(b);
-  }, 1100);
-  document.getElementById('sub-text').textContent = '';
-}, 4000);
+(function(){
+  var _bl=document.getElementById('boot-lines');
+  var _msgs=[
+    '> SYSTEMS ONLINE',
+    '> WORLD MATRIX LOADED',
+    '> THREAT DETECTION <span style="color:#ff2200;text-shadow:0 0 8px #ff2200">ARMED</span>',
+    '<span style="color:#ffb000">// WORLD ONLINE</span> <span id="cur"></span>'
+  ];
+  [280,650,1050,1480].forEach(function(t,i){
+    setTimeout(function(){
+      var d=document.createElement('div'); d.className='bl'; d.innerHTML=_msgs[i]; _bl.appendChild(d);
+    },t);
+  });
+  setTimeout(function(){
+    document.getElementById('boot').classList.add('fade-out');
+    setTimeout(function(){var b=document.getElementById('boot');if(b&&b.parentNode)b.parentNode.removeChild(b);},700);
+    document.getElementById('sub-text').textContent='';
+  },2100);
+})();
 
 // ── RENDERER ─────────────────────────────────────────────────────────
 var renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -8404,7 +8429,9 @@ function updateThreatSpawner(delta){
           hp:_idf.hp,maxHp:_idf.hp,type:_idf.type,rank:_idf.rank,speedMult:_idf.spd,
           walkPhase:Math.random()*Math.PI*2,homePos:_ihp.clone(),patrolTarget:_ihp.clone(),
           nState:'PATROL',_nStatePrev:'PATROL',alertRange:_idf.alertR,alertTimer:0,atkCooldown:0,
-          atkRate:3.6,atkDmg:4,chargeTimer:0});
+          atkRate:_idf.rank==='champion'?1.6:_idf.rank==='elite'?2.2:_idf.rank==='warrior'?2.8:3.6,
+          atkDmg:_idf.rank==='champion'?20:_idf.rank==='elite'?12:_idf.rank==='warrior'?7:4,
+          chargeTimer:0});
       }
     }
   }
@@ -11572,7 +11599,7 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
 
   if(_saveExists){
     // Save found — skip deploy screen, release game after boot clears
-    setTimeout(function(){ _introActive=false; dTimer=0.5; }, _MOBILE?200:5200);
+    setTimeout(function(){ _introActive=false; dTimer=0.5; }, _MOBILE?200:3000);
     return;
   }
 
@@ -11591,7 +11618,7 @@ dBuildPos.set(0,0,0); dTarget.set(0,0,0);
   document.body.appendChild(ov);
 
   // Panel fades in after boot has fully cleared (or immediately on mobile where boot is hidden)
-  var _panelDelay=_MOBILE?400:5200;
+  var _panelDelay=_MOBILE?400:3000;
   setTimeout(function(){ panel.style.opacity='1'; },_panelDelay);
 
   // ── Agent selection panel ─────────────────────────────────────────
