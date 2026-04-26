@@ -7437,7 +7437,7 @@ function _updateElizaTracker(){
 // ── DESTINY nameplate — floats above her head ─────────────────────────
 var _nameplateEl=document.getElementById('destiny-nameplate');
 function _updateNameplate(){
-  if(!dGroup||!_nameplateEl) return;
+  if(!_hasDestiny||!dGroup||!_nameplateEl) return;
   var above=new THREE.Vector3(dGroup.position.x, dGroup.position.y+2.6, dGroup.position.z);
   var sv=above.clone().project(camera);
   if(sv.z>1){_nameplateEl.style.display='none';return;}
@@ -10632,7 +10632,7 @@ function toggleJournal(){
   if(btn) btn.classList.toggle('active',_journalOpen);
 }
 function destinyChat(msg){
-  if(!chatLogEl) return;
+  if(!chatLogEl||!_hasDestiny) return;
   // Only show AI-generated messages — no scripted fallback
   if(!msg || msg.indexOf('[D1]') !== 0) return;
   var nowMs = Date.now();
@@ -13374,7 +13374,7 @@ function animate() {
   if(_hasEliza) _updateElizaNameplate();
   _updateBuildProgress(delta);
   updatePOIDiscovery(delta);
-  DESTINY_BRAIN.tick(delta);
+  if(_hasDestiny) DESTINY_BRAIN.tick(delta);
   if(_hasEliza) ELIZA_BRAIN.tick(delta);
   updateDungeonCamera(delta);
   // Pulse dungeon interior crystal glow
