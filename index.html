@@ -10156,7 +10156,7 @@ function updateThreats(delta, t) {
     if(th.weapon) th.weapon.rotation.z=Math.sin(th.walkPhase*0.55)*0.20;
 
     // ── Patrol/Alert/Attack/Return state machine ──────────────────────
-    var dPos=dGroup?dGroup.position.clone().setY(0):null;
+    var dPos=(_hasDestiny&&dGroup&&dState!=='STUNNED')?dGroup.position.clone().setY(0):null;
     var dDist=dPos?th.group.position.distanceTo(dPos):Infinity;
     // Pick nearest alive agent as the primary target for this threat
     var _elizaAlive=elizaGroup&&_hasEliza&&eState!=='STUNNED';
