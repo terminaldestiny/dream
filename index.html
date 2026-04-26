@@ -11830,8 +11830,17 @@ function _tdReset(){
 }
 
 // Auto-save every 90s and on page close
-setInterval(_tdSave,90000);
-window.addEventListener('beforeunload',function(){ if(!_tdResetting) _tdSave(); });
+setInterval(function(){
+  var _hasProgress=structures.filter(function(s){return s.alive;}).length>0||killCount>0;
+  if(_hasProgress) _tdSave();
+},90000);
+window.addEventListener('beforeunload',function(){
+  if(_tdResetting) return;
+  // Only save if the game has meaningful progress — prevents a brand-new game
+  // from writing to localStorage on refresh and skipping the deploy screen.
+  var _hasProgress=structures.filter(function(s){return s.alive;}).length>0||killCount>0;
+  if(_hasProgress) _tdSave();
+});
 
 // Load save or start fresh
 var _tdFreshStart=!_tdLoad();
