@@ -10484,6 +10484,7 @@ var eBuildType='', eBuildPos=new THREE.Vector3(), eBuildRot=0;
 var eGatherNodeIdx=-1, eGatherTimer=0, eCarrying=0, eCarryType='compute';
 var eRareNodeIdx=-1, eRareCarryType='lumite', eRareCarrying=0, eRareTimer=0;
 var eUpgradeTarget=null, eExplorePOI=null;
+var eArtPos=new THREE.Vector3(), eArtPick='';
 var _eDeathCount=0, _eStunInitDone=false;
 var _eWanderT=0, _eWanderOX=0, _eWanderOZ=0;
 var _etv1=new THREE.Vector3(), _etv2=new THREE.Vector3();
@@ -10722,19 +10723,18 @@ function buildDestiny() {
 
 dParts=buildDestiny(); dGroup=dParts.group;
 
-// ── buildEliza — purple/silver hunter character ────────────────────────
+// ── buildEliza — black hair, orange shirt, black pants ────────────────────────
 function buildEliza(){
   var g=new THREE.Group();
   var mSkin   = new THREE.MeshBasicMaterial({color:0xC8A882}); // warm tan skin
-  var mHair   = new THREE.MeshBasicMaterial({color:0xE8E8F0}); // platinum silver
-  var mTop    = new THREE.MeshBasicMaterial({color:0x1A1208}); // dark tactical top
-  var mInner  = new THREE.MeshBasicMaterial({color:0x8B4200}); // burnt orange inner
-  var mPants  = new THREE.MeshBasicMaterial({color:0x1C1C24}); // near-black cargo pants
+  var mHair   = new THREE.MeshBasicMaterial({color:0x1a1a1a}); // black hair
+  var mTop    = new THREE.MeshBasicMaterial({color:0xff7700}); // orange shirt
+  var mPants  = new THREE.MeshBasicMaterial({color:0x0d0d0d}); // black pants
   var mEye    = new THREE.MeshBasicMaterial({color:0xff8800}); // orange glowing eyes
   var mAu     = new THREE.MeshBasicMaterial({color:0xff6600,transparent:true,opacity:0.12,blending:THREE.AdditiveBlending,depthWrite:false});
   var mRn     = new THREE.MeshBasicMaterial({color:0xff9900,transparent:true,opacity:0.40,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,depthWrite:false});
 
-  // Legs — cargo pants
+  // Legs — black pants
   var lLP=new THREE.Group(); lLP.position.set(-0.105,0.80,0);
   var lLeg=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.065,0.050,0.80,7),mPants); lLeg.position.y=-0.40; lLP.add(lLeg);
   g.add(lLP);
@@ -10742,14 +10742,13 @@ function buildEliza(){
   var rLeg=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.065,0.050,0.80,7),mPants); rLeg.position.y=-0.40; lRP.add(rLeg);
   g.add(lRP);
 
-  // Torso — dark tactical top
+  // Torso — orange shirt
   var torso=new THREE.Mesh(new THREE.BoxBufferGeometry(0.30,0.58,0.15),mTop); torso.position.y=1.12; g.add(torso);
-  var inner=new THREE.Mesh(new THREE.BoxBufferGeometry(0.18,0.56,0.08),mInner); inner.position.set(0,1.12,0.08); g.add(inner);
   // Shoulders
   var shdL=new THREE.Mesh(new THREE.BoxBufferGeometry(0.10,0.09,0.24),mTop); shdL.position.set(-0.23,1.40,0); g.add(shdL);
   var shdR=new THREE.Mesh(new THREE.BoxBufferGeometry(0.10,0.09,0.24),mTop); shdR.position.set( 0.23,1.40,0); g.add(shdR);
 
-  // Arms — sleek tactical sleeves
+  // Arms — orange sleeves
   var aLP=new THREE.Group(); aLP.position.set(-0.27,1.38,0);
   var lArm=new THREE.Mesh(new THREE.CylinderBufferGeometry(0.050,0.038,0.56,6),mTop); lArm.position.y=-0.28; aLP.add(lArm);
   var lHand=new THREE.Mesh(new THREE.SphereBufferGeometry(0.042,5,5),mSkin); lHand.position.y=-0.58; aLP.add(lHand);
@@ -10765,10 +10764,12 @@ function buildEliza(){
   var eL=new THREE.Mesh(new THREE.SphereBufferGeometry(0.026,4,4),mEye); eL.position.set(-0.068,1.75,0.175); g.add(eL);
   var eR=new THREE.Mesh(new THREE.SphereBufferGeometry(0.026,4,4),mEye); eR.position.set( 0.068,1.75,0.175); g.add(eR);
 
-  // Silver short hair — cropped close, side-swept
-  var hairCap=new THREE.Mesh(new THREE.SphereBufferGeometry(0.200,8,8),mHair); hairCap.position.set(0,1.76,-0.01); hairCap.scale.set(1.01,0.80,1.01); g.add(hairCap);
-  var sideSwept=new THREE.Mesh(new THREE.BoxBufferGeometry(0.22,0.06,0.12),mHair); sideSwept.position.set(-0.06,1.88,-0.04); sideSwept.rotation.z=0.12; g.add(sideSwept);
-  var hairFront=new THREE.Mesh(new THREE.BoxBufferGeometry(0.14,0.08,0.04),mHair); hairFront.position.set(-0.02,1.89,0.16); g.add(hairFront);
+  // Black medium hair — top cap + side curtains + back fall to shoulders
+  var hairCap=new THREE.Mesh(new THREE.SphereBufferGeometry(0.200,8,8),mHair); hairCap.position.set(0,1.76,-0.01); hairCap.scale.set(1.02,0.82,1.02); g.add(hairCap);
+  var hairFront=new THREE.Mesh(new THREE.BoxBufferGeometry(0.18,0.07,0.05),mHair); hairFront.position.set(0,1.90,0.15); g.add(hairFront);
+  var hairSideL=new THREE.Mesh(new THREE.BoxBufferGeometry(0.07,0.28,0.10),mHair); hairSideL.position.set(-0.19,1.64,0.00); g.add(hairSideL);
+  var hairSideR=new THREE.Mesh(new THREE.BoxBufferGeometry(0.07,0.28,0.10),mHair); hairSideR.position.set( 0.19,1.64,0.00); g.add(hairSideR);
+  var hairBack=new THREE.Mesh(new THREE.BoxBufferGeometry(0.26,0.38,0.07),mHair); hairBack.position.set(0,1.57,-0.19); g.add(hairBack);
 
   // Hunting knife on left hip
   var mBlade=new THREE.MeshBasicMaterial({color:0xccccee,transparent:true,opacity:0.90});
@@ -10891,7 +10892,8 @@ function updateEliza(delta, t){
   if(eState==='BUILD_WALK'||eState==='BUILD_WAIT'||eState==='BUILD_ARRIVE'||
      eState==='GATHER_WALK'||eState==='GATHERING'||eState==='GATHER_RETURN'||
      eState==='RARE_WALK'||eState==='RARE_GATHER'||eState==='RARE_RETURN'||
-     eState==='UPGRADE_WALK'||eState==='EXPLORE_WALK'||eState==='EXPLORE_LINGER'||
+     eState==='UPGRADE_WALK'||eState==='ART_WALK'||eState==='ART_PLACE'||
+     eState==='EXPLORE_WALK'||eState==='EXPLORE_LINGER'||
      eState==='SCOUT_WALK'||eState==='SCOUT_SURVEY'||eState==='EXPLORE_WAIT'){
     var _eth=findAlertThreatNear(eg);
     if(_eth){
@@ -11279,7 +11281,16 @@ function updateEliza(delta, t){
           } else { eTimer=5; } // no free node yet — retry after delay
         }
       }
-      // Priority 4: scout or explore
+      // Priority 4: art placement (occasional)
+      if(Math.random()<0.22){
+        var _eap=pickArtProject();
+        if(_eap){
+          eArtPos.set(_eap.x,0,_eap.z); eArtPick=_eap.pick;
+          eTarget.copy(eArtPos); eState='ART_WALK'; elizaSetStatus('CREATING');
+          _e1Say('Marking the ground.','chat',{lastEvent:'placing art: '+eArtPick,question:'Short line about leaving a mark on the world.'}); return;
+        }
+      }
+      // Priority 5: scout or explore
       if(Math.random()<0.38){
         var _esa=Math.random()*Math.PI*2, _esr=35+Math.random()*90;
         if(_esr>FOG_WR-20) _esr=FOG_WR-20;
@@ -11299,6 +11310,35 @@ function updateEliza(delta, t){
         eState='EXPLORE_WALK'; elizaSetStatus('EXPLORING');
         _e1Say('Moving to: '+ePOItarget.name+'.','chat',{lastEvent:'exploring '+ePOItarget.name,question:'Short line about heading to explore a location called '+ePOItarget.name+'.'});
       } else { eTimer=10; }
+    }
+
+  } else if(eState==='ART_WALK'){
+    eWalk+=delta*3.8; var eaww=Math.sin(eWalk)*0.44;
+    ep.legLPivot.rotation.x=eaww; ep.legRPivot.rotation.x=-eaww;
+    ep.armLPivot.rotation.x=-eaww*0.4; ep.armRPivot.rotation.x=eaww*0.4;
+    _etv1.subVectors(eTarget,eg.position); _etv1.y=0;
+    var eawDist=_etv1.length();
+    if(eawDist>0.25){
+      _etv1.normalize();
+      eg.position.addScaledVector(_etv1,E_SPEED*delta);
+      eg.rotation.y=Math.atan2(_etv1.x,_etv1.z);
+    } else {
+      eg.position.x=eTarget.x; eg.position.z=eTarget.z;
+      ep.legLPivot.rotation.x=0; ep.legRPivot.rotation.x=0;
+      eState='ART_PLACE'; eTimer=1.2;
+    }
+
+  } else if(eState==='ART_PLACE'){
+    ep.armLPivot.rotation.x=Math.sin(t*3.5)*0.45;
+    ep.armRPivot.rotation.x=-Math.sin(t*3.5+0.8)*0.45;
+    eTimer-=delta;
+    if(eTimer<=0){
+      var _eapx=eg.position.x, _eapz=eg.position.z;
+      executeArtProject(_eapx,_eapz,eArtPick); _artLog.push({pick:eArtPick,x:_eapx,z:_eapz});
+      ep.armLPivot.rotation.x=0; ep.armRPivot.rotation.x=0;
+      journalNote('✅ ELIZA placed: '+eArtPick,'🎨');
+      eTarget.set(-2,0,2);
+      eState='EXPLORE_WAIT'; eTimer=8; elizaSetStatus('PLANNING');
     }
 
   } else if(eState==='EXPLORE_WALK'){
