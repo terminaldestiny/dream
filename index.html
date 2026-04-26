@@ -196,6 +196,11 @@
     #wave-display.wave-active #wave-info { color: #ff2200cc; }
     #kills-row { font-size: 9px; color: #00bef044; letter-spacing: 1px; margin-top: 2px; }
     #kills-val { color: #00bef0aa; font-size: 10px; }
+    #alert-level { font-size: 9px; letter-spacing: 2px; margin-top: 4px; transition: color 0.4s; }
+    #alert-level.al-clear   { color: #00ff4155; }
+    #alert-level.al-caution { color: #ffcc00bb; }
+    #alert-level.al-alert   { color: #ff8800cc; }
+    #alert-level.al-danger  { color: #ff2200ff; text-shadow: 0 0 8px #ff2200; }
 
     /* ── INSPECT PANEL (Age of Empires bottom info bar) ─────────────── */
     #inspect-panel {
@@ -517,6 +522,7 @@
     <span id="kills-row"> &nbsp;·&nbsp; KILLS: <span id="kills-val">0</span></span>
   </div>
   <div id="wave-info">AWAITING FIRST THREAT</div>
+  <div id="alert-level" class="al-clear">◈ STATUS: CLEAR</div>
 </div>
 
 <script src="three.min.js"></script>
@@ -8397,7 +8403,7 @@ function updateThreatSpawner(delta){
           alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
           hp:_idf.hp,maxHp:_idf.hp,type:_idf.type,rank:_idf.rank,speedMult:_idf.spd,
           walkPhase:Math.random()*Math.PI*2,homePos:_ihp.clone(),patrolTarget:_ihp.clone(),
-          nState:'PATROL',alertRange:_idf.alertR,alertTimer:0,atkCooldown:0,
+          nState:'PATROL',_nStatePrev:'PATROL',alertRange:_idf.alertR,alertTimer:0,atkCooldown:0,
           atkRate:3.6,atkDmg:4,chargeTimer:0});
       }
     }
@@ -9876,7 +9882,7 @@ function spawnThreat() {
     hp:def.hp,maxHp:def.hp,type:def.type,rank:def.rank,speedMult:def.spd,
     walkPhase:Math.random()*Math.PI*2,
     homePos:homePos.clone(),patrolTarget:homePos.clone(),
-    nState:'PATROL',alertRange:def.alertR,alertTimer:0,
+    nState:'PATROL',_nStatePrev:'PATROL',alertRange:def.alertR,alertTimer:0,
     atkCooldown:0,
     atkRate:def.rank==='champion'?1.6:def.rank==='elite'?2.2:def.rank==='warrior'?2.8:3.6,
     atkDmg:def.rank==='champion'?20:def.rank==='elite'?12:def.rank==='warrior'?7:4,
@@ -10129,6 +10135,91 @@ function findAlertThreatNear(group) {
   return best;
 }
 
+// ── ALERT LEVEL ───────────────────────────────────────────────────────
+var _alertLevel=0;
+var _alertLevelEl=document.getElementById('alert-level');
+var _alertNames=['CLEAR','CAUTION','ALERT','DANGER'];
+var _alertClasses=['al-clear','al-caution','al-alert','al-danger'];
+function _updateAlertLevel(){
+  var _ac=0;
+  for(var _ai=0;_ai<threats.length;_ai++){
+    var _at=threats[_ai];
+    if(_at.alive&&!_at.dissolving&&(_at.nState==='ALERT'||_at.nState==='ATTACK')) _ac++;
+  }
+  var _nl=_ac===0?0:_ac<=2?1:_ac<=4?2:3;
+  if(_nl!==_alertLevel){
+    _alertLevel=_nl;
+    if(_alertLevelEl){
+      _alertLevelEl.className=_alertClasses[_alertLevel];
+      _alertLevelEl.textContent='◈ STATUS: '+_alertNames[_alertLevel];
+    }
+    // Rising to ALERT or DANGER triggers a sooner intercept
+    if(_alertLevel>=2&&_interceptTimer>20) _interceptTimer=8+Math.random()*10;
+  }
+}
+
+// ── ! ALERT MARKS ─────────────────────────────────────────────────────
+var _alertMarks=[];
+function _spawnAlertMark(th){
+  var el=document.createElement('div');
+  el.style.cssText='position:fixed;font-family:monospace;font-size:24px;font-weight:bold;pointer-events:none;z-index:50;color:#ffdd00;text-shadow:0 0 14px #ffdd00,0 0 4px #fff;';
+  el.textContent='!';
+  document.body.appendChild(el);
+  _alertMarks.push({el:el,th:th,life:0,maxLife:1.6});
+}
+function _updateAlertMarks(delta){
+  for(var _mi=_alertMarks.length-1;_mi>=0;_mi--){
+    var m=_alertMarks[_mi]; m.life+=delta;
+    var p=m.life/m.maxLife;
+    if(!m.th.group||!camera){document.body.removeChild(m.el);_alertMarks.splice(_mi,1);continue;}
+    var wp=m.th.group.position.clone().setY(m.th.group.position.y+3.0+p*0.6);
+    var sv=wp.project(camera);
+    if(sv.z>1){m.el.style.opacity='0';if(p>=1){document.body.removeChild(m.el);_alertMarks.splice(_mi,1);}continue;}
+    var sx=(sv.x*0.5+0.5)*window.innerWidth, sy=(1-(sv.y*0.5+0.5))*window.innerHeight;
+    m.el.style.left=(sx-8)+'px'; m.el.style.top=sy+'px';
+    m.el.style.opacity=Math.max(0,p<0.15?p/0.15:1-(p-0.15)/0.85)+'';
+    if(p>=1){document.body.removeChild(m.el);_alertMarks.splice(_mi,1);}
+  }
+}
+
+// ── ENEMY RADIO INTERCEPTS ────────────────────────────────────────────
+var _INTERCEPT_LINES=[
+  'Movement near sector four. Two contacts — eyes open.',
+  'Base is bigger than the last report said. They build fast.',
+  'Something took out the patrol. Assume it was them.',
+  'Hold ground. Do not engage without backup.',
+  'Three of ours down this week. They are not afraid of us.',
+  'The structures keep going up. Where are they getting resources?',
+  'Scout spotted one alone. Still kept moving. Dangerous.',
+  'Captain says double the patrol rotation starting tonight.',
+  'We had this land before they came. We will have it again.',
+  'Lost contact with east watch. Assume compromised.',
+  'They know our patrol routes. Change them.',
+  'The fog works both ways. Remember that.',
+  'Those two fight differently. One is faster. One is harder to drop.',
+  'Whatever they are building — it is not stopping.',
+  'Do not underestimate them. The last group that did did not report back.',
+  'Hit their resource runs if you can. That is where it hurts.',
+  'Night patrol found tracks leading deeper into territory. Investigating.',
+  'Commander wants a full report on their construction. We do not have one.',
+  'Their base lights the horizon now. They are not hiding anymore.',
+  'Two operatives. Unknown origin. Unknown objective. Threat level: extreme.',
+  'Something in the fog is watching us back.',
+  'They have not stopped building since they arrived. Not once.',
+  'That orange one moves fast. Do not let her flank you.',
+  'The cyan one builds like it has a plan. It does.',
+];
+var _interceptTimer=90+Math.random()*60;
+function _updateIntercept(delta){
+  if(threats.filter(function(t){return t.alive&&!t.dissolving;}).length===0) return;
+  _interceptTimer-=delta;
+  if(_interceptTimer<=0){
+    var _base=_alertLevel>=3?50:_alertLevel>=2?80:_alertLevel>=1?110:150;
+    _interceptTimer=_base+Math.random()*50;
+    journalNote('[INTERCEPT] '+_INTERCEPT_LINES[Math.floor(Math.random()*_INTERCEPT_LINES.length)],'📻');
+  }
+}
+
 function updateThreats(delta, t) {
   if(_introActive) return;
   var hasLive=false;
@@ -10174,6 +10265,9 @@ function updateThreats(delta, t) {
     // Glow + ring pulse
     if(th.glowMat) th.glowMat.opacity=0.08+Math.sin(t*3.0+th.wobble)*0.06;
     if(th.gRing)   th.gRing.material.opacity=0.32+Math.sin(t*2.5+th.wobble)*0.16;
+    // ! alert mark when enemy first spots an agent
+    if(th._nStatePrev!=='ALERT'&&th._nStatePrev!=='ATTACK'&&(th.nState==='ALERT'||th.nState==='ATTACK')) _spawnAlertMark(th);
+    th._nStatePrev=th.nState;
     // Walk bob speed by rank
     var bobRate=th.rank==='champion'?2.8:th.rank==='elite'?3.6:th.rank==='warrior'?4.2:5.5;
     var bobH   =th.rank==='champion'?0.06:0.11;
@@ -13203,6 +13297,9 @@ function animate() {
   }
   _updateDmgLabels(delta);
   _updateThoughtBubbles(delta);
+  _updateAlertLevel();
+  _updateAlertMarks(delta);
+  _updateIntercept(delta);
   _updateDestinyTracker();
   if(_hasEliza) _updateElizaTracker();
   _updateNameplate();
