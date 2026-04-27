@@ -113,6 +113,84 @@ app.post('/api/eliza', function(req, res) {
   callClaude(ELIZA_PROMPT, buildUserMsg(state), res);
 });
 
+// ── Per-visitor daily rate limiting for /api/chat ─────────────────────────
+var CHAT_DAILY_LIMIT = 20;
+var visitorChatLog = {}; // { visitorId: { date: 'YYYY-MM-DD', count: N } }
+
+function getTodayUTC() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function checkChatLimit(visitorId) {
+  var today = getTodayUTC();
+  var entry = visitorChatLog[visitorId];
+  if (!entry || entry.date !== today) {
+    visitorChatLog[visitorId] = { date: today, count: 0 };
+    entry = visitorChatLog[visitorId];
+  }
+  if (entry.count >= CHAT_DAILY_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
+function getChatRemaining(visitorId) {
+  var today = getTodayUTC();
+  var entry = visitorChatLog[visitorId];
+  if (!entry || entry.date !== today) return CHAT_DAILY_LIMIT;
+  return Math.max(0, CHAT_DAILY_LIMIT - entry.count);
+}
+
+// ── DESTINY Mentor system prompt ──────────────────────────────────────────
+var DESTINY_CHAT_PROMPT = 'You are DESTINY, a battle-tested AI operative and mentor. You teach people about AI, crypto, blockchain, coding, building projects — whatever they need. You learned everything from the trenches yourself. You speak in short punchy sentences. You\'re encouraging but real — no hand-holding, no fluff. You explain complex things simply because you remember what it was like to know nothing. You use your personality — wry humor, mission references, crypto slang when relevant. You never break character. If someone asks something you don\'t know, you say so honestly. Your goal is to make every person who talks to you leave knowing something they didn\'t before.';
+
+// ── /api/chat endpoint ────────────────────────────────────────────────────
+app.post('/api/chat', function(req, res) {
+  var body = req.body || {};
+  var visitorId = (body.visitorId || '').toString().trim().slice(0, 128);
+  var message   = (body.message   || '').toString().trim().slice(0, 2000);
+  var rawHistory = Array.isArray(body.history) ? body.history : [];
+
+  if (!visitorId || !message) {
+    return res.status(400).json({ error: 'missing_fields' });
+  }
+
+  if (!checkChatLimit(visitorId)) {
+    return res.status(429).json({
+      error: 'rate_limited',
+      remaining: 0,
+      response: 'Signal exhausted. Return tomorrow, hero.'
+    });
+  }
+
+  var remaining = getChatRemaining(visitorId);
+
+  // Sanitize and cap history
+  var messages = rawHistory
+    .filter(function(m) {
+      return m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string';
+    })
+    .map(function(m) { return { role: m.role, content: m.content.slice(0, 2000) }; })
+    .slice(-20);
+
+  // Ensure the final message is the current user query
+  if (!messages.length || messages[messages.length - 1].role !== 'user') {
+    messages.push({ role: 'user', content: message });
+  }
+
+  client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 300,
+    system: DESTINY_CHAT_PROMPT,
+    messages: messages
+  }).then(function(msg) {
+    var text = (msg.content && msg.content[0] && msg.content[0].text) ? msg.content[0].text.trim() : 'Signal unclear.';
+    res.json({ response: text, remaining: remaining });
+  }).catch(function(err) {
+    console.error('Chat API error:', err.message || err);
+    res.status(500).json({ error: 'api_error', response: 'Static on the line. Try again.' });
+  });
+});
+
 // ── Health ────────────────────────────────────────────────────────────────
 app.get('/health', function(req, res) {
   var now = Date.now(), ago = now - 3600000;

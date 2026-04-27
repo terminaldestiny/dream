@@ -7947,10 +7947,12 @@ function personalityChat(category, buildType) {
 
 // ── DESTINY_BRAIN — pluggable AI interface ─────────────────────────────
 // Claude Haiku via local proxy (server.js). Falls back to scripted behavior if offline.
-// In production (Railway) the game is served from the same origin as the API
-var _D1_SERVER = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-  ? 'http://localhost:3000/api/think'
-  : '/api/think';
+var _RAILWAY = 'https://dream-production-0bfd.up.railway.app';
+var _LOCAL   = 'http://localhost:3000';
+var _IS_LOCAL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+var _BASE    = _IS_LOCAL ? _LOCAL : _RAILWAY;
+
+var _D1_SERVER = _BASE + '/api/think';
 var _D1_ONLINE = false; // set true once server responds
 var _D1_THOUGHT_TIMER = 120; // first thought fires 120s after online detected
 var _D1_THOUGHT_INTERVAL = 360; // seconds between periodic thoughts
@@ -8080,8 +8082,7 @@ function _d1PrefetchAction() {
 // Ping server once on load to check availability
 (function(){
   var chk = new XMLHttpRequest();
-  var _healthUrl=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?'http://localhost:3000/health':'/health';
-  chk.open('GET',_healthUrl,true);
+  chk.open('GET', _BASE + '/health', true);
   chk.timeout=3000;
   chk.onreadystatechange=function(){
     if(chk.readyState===4&&chk.status===200){
@@ -8214,9 +8215,7 @@ var DESTINY_BRAIN = {
 // ════════════════════════════════════════════════════════════════════
 // ── ELIZA_BRAIN — AI backend (mirrors DESTINY_BRAIN) ─────────────────
 // ════════════════════════════════════════════════════════════════════
-var _E1_SERVER = (location.hostname==='localhost'||location.hostname==='127.0.0.1')
-  ? 'http://localhost:3000/api/eliza'
-  : '/api/eliza';
+var _E1_SERVER = _BASE + '/api/eliza';
 var _E1_ONLINE = false;
 var _E1_THOUGHT_TIMER = 150;    // first thought fires 150s after online (offset from DESTINY)
 var _E1_THOUGHT_INTERVAL = 360; // seconds between periodic thoughts
@@ -8334,8 +8333,7 @@ function _e1PrefetchAction() {
 // Ping ELIZA server on load
 (function(){
   var chk=new XMLHttpRequest();
-  var _url=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?'http://localhost:3000/health':'/health';
-  chk.open('GET',_url,true); chk.timeout=3000;
+  chk.open('GET', _BASE + '/health', true); chk.timeout=3000;
   chk.onreadystatechange=function(){
     if(chk.readyState===4&&chk.status===200){
       _E1_ONLINE=true;
