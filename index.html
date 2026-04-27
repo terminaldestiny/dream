@@ -8423,7 +8423,7 @@ function updateThreatSpawner(delta){
         var _ispr=new THREE.Sprite(new THREE.SpriteMaterial({map:_itex,transparent:true,blending:THREE.AdditiveBlending}));
         _ispr.scale.set(5.6,1.05,1); _ispr.position.y=_idf.sc*2.8+0.8; _igrp.add(_ispr);
         _igrp.scale.setScalar(_idf.sc); _igrp.position.copy(_ihp); scene.add(_igrp);
-        threats.push({group:_igrp,glowMat:_ibb.glowMat,shell:_ibb.shell,shell2:_ibb.shell2,
+        var _ith={group:_igrp,glowMat:_ibb.glowMat,shell:_ibb.shell,shell2:_ibb.shell2,
           weapon:_ibb.weapon,gRing:_ibb.gRing,pos:_ihp.clone(),
           alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
           hp:_idf.hp,maxHp:_idf.hp,type:_idf.type,rank:_idf.rank,speedMult:_idf.spd,
@@ -8431,7 +8431,8 @@ function updateThreatSpawner(delta){
           nState:'PATROL',_nStatePrev:'PATROL',alertRange:_idf.alertR,alertTimer:0,atkCooldown:0,
           atkRate:_idf.rank==='champion'?1.6:_idf.rank==='elite'?2.2:_idf.rank==='warrior'?2.8:3.6,
           atkDmg:_idf.rank==='champion'?20:_idf.rank==='elite'?12:_idf.rank==='warrior'?7:4,
-          chargeTimer:0});
+          chargeTimer:0};
+        threats.push(_ith); _addVisionCone(_ith);
       }
     }
   }
@@ -9903,7 +9904,7 @@ function spawnThreat() {
   document.getElementById('wb-sub').textContent=def.banSub;
   document.getElementById('wave-banner').classList.add('show');
   setTimeout(function(){document.getElementById('wave-banner').classList.remove('show');},2800);
-  threats.push({group:g,glowMat:built.glowMat,shell:built.shell,shell2:built.shell2,
+  var _nth={group:g,glowMat:built.glowMat,shell:built.shell,shell2:built.shell2,
     weapon:built.weapon,gRing:built.gRing,pos:homePos.clone(),
     alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
     hp:def.hp,maxHp:def.hp,type:def.type,rank:def.rank,speedMult:def.spd,
@@ -9913,7 +9914,8 @@ function spawnThreat() {
     atkCooldown:0,
     atkRate:def.rank==='champion'?1.6:def.rank==='elite'?2.2:def.rank==='warrior'?2.8:3.6,
     atkDmg:def.rank==='champion'?20:def.rank==='elite'?12:def.rank==='warrior'?7:4,
-    chargeTimer:0});
+    chargeTimer:0};
+  threats.push(_nth); _addVisionCone(_nth);
 }
 
 function dissolveThreat(th) {
@@ -9940,7 +9942,7 @@ function _spawnMinithreat(pos, rank) {
   var g=new THREE.Group(); var built=def.builder(g);
   g.scale.setScalar(def.sc*0.85); g.position.copy(pos); scene.add(g);
   createBurst(pos.clone().setY(1.2),0xff4400,12);
-  threats.push({group:g,glowMat:built.glowMat,shell:built.shell,shell2:built.shell2,
+  var _nmth={group:g,glowMat:built.glowMat,shell:built.shell,shell2:built.shell2,
     weapon:built.weapon,gRing:built.gRing,pos:pos.clone(),
     alive:true,dissolving:false,dissolveTimer:0,wobble:Math.random()*100,
     hp:def.hp,maxHp:def.hp,type:def.type,rank:def.rank,speedMult:def.spd,
@@ -9948,7 +9950,8 @@ function _spawnMinithreat(pos, rank) {
     nState:'ALERT',alertRange:def.alertR,alertTimer:0,atkCooldown:0,
     atkRate:def.rank==='champion'?1.6:def.rank==='elite'?2.2:def.rank==='warrior'?2.8:3.6,
     atkDmg:def.rank==='champion'?20:def.rank==='elite'?12:def.rank==='warrior'?7:4,
-    chargeTimer:0,_summoned:true});
+    chargeTimer:0,_summoned:true};
+  threats.push(_nmth); _addVisionCone(_nmth);
 }
 
 // ── Spawn a small cave spiderling (offspring on spider death) ─────────
@@ -10171,7 +10174,7 @@ function _updateAlertLevel(){
   var _ac=0;
   for(var _ai=0;_ai<threats.length;_ai++){
     var _at=threats[_ai];
-    if(_at.alive&&!_at.dissolving&&(_at.nState==='ALERT'||_at.nState==='ATTACK')) _ac++;
+    if(_at.alive&&!_at.dissolving&&(_at.nState==='ALERT'||_at.nState==='ATTACK'||_at.nState==='CAUTION')) _ac++;
   }
   var _nl=_ac===0?0:_ac<=2?1:_ac<=4?2:3;
   if(_nl!==_alertLevel){
@@ -10207,6 +10210,52 @@ function _updateAlertMarks(delta){
     m.el.style.opacity=Math.max(0,p<0.15?p/0.15:1-(p-0.15)/0.85)+'';
     if(p>=1){document.body.removeChild(m.el);_alertMarks.splice(_mi,1);}
   }
+}
+function _spawnCautionMark(th){
+  var el=document.createElement('div');
+  el.style.cssText='position:fixed;font-family:monospace;font-size:22px;font-weight:bold;pointer-events:none;z-index:50;color:#ffcc00;text-shadow:0 0 12px #ffcc00,0 0 4px #fff;';
+  el.textContent='?';
+  document.body.appendChild(el);
+  _alertMarks.push({el:el,th:th,life:0,maxLife:2.0});
+}
+
+// ── FOOTPRINT TRAILS ─────────────────────────────────────────────────
+var _footprints=[];
+function _spawnFootprint(x,z){
+  if(_footprints.length>64) return;
+  var geo=new THREE.PlaneBufferGeometry(0.13,0.13);
+  var mat=new THREE.MeshBasicMaterial({color:0x00ff41,transparent:true,opacity:0.20,depthWrite:false,side:THREE.DoubleSide});
+  var m=new THREE.Mesh(geo,mat);
+  m.rotation.x=-Math.PI/2; m.position.set(x,0.04,z); scene.add(m);
+  _footprints.push({mesh:m,life:7});
+}
+function _tickFootprints(delta){
+  for(var _fi=_footprints.length-1;_fi>=0;_fi--){
+    var _fp=_footprints[_fi]; _fp.life-=delta;
+    _fp.mesh.material.opacity=0.20*Math.max(0,_fp.life/7);
+    if(_fp.life<=0){scene.remove(_fp.mesh);_footprints.splice(_fi,1);}
+  }
+}
+
+// ── VISION CONE ───────────────────────────────────────────────────────
+function _addVisionCone(th){
+  var r=Math.min(th.alertRange*0.85,11); var ha=0.92; var segs=10;
+  var verts=[0,0.06,0];
+  for(var _vi=0;_vi<=segs;_vi++){var _va=-ha+(ha*2*_vi/segs);verts.push(Math.sin(_va)*r,0.06,Math.cos(_va)*r);}
+  var idx=[]; for(var _vj=0;_vj<segs;_vj++) idx.push(0,_vj+1,_vj+2);
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
+  geo.setIndex(idx);
+  var mat=new THREE.MeshBasicMaterial({color:0xffee00,transparent:true,opacity:0.10,side:THREE.DoubleSide,depthWrite:false});
+  var cm=new THREE.Mesh(geo,mat); th.group.add(cm);
+  th._coneMesh=cm; th._coneMat=mat;
+}
+function _inVisionCone(th,pos){
+  var dx=pos.x-th.group.position.x, dz=pos.z-th.group.position.z;
+  var dist=Math.sqrt(dx*dx+dz*dz);
+  if(dist<1.8) return true;
+  var ry=th.group.rotation.y;
+  return (Math.sin(ry)*(dx/dist)+Math.cos(ry)*(dz/dist))>0.50;
 }
 
 // ── ENEMY RADIO INTERCEPTS ────────────────────────────────────────────
@@ -10295,6 +10344,7 @@ function updateThreats(delta, t) {
     if(th.gRing)   th.gRing.material.opacity=0.32+Math.sin(t*2.5+th.wobble)*0.16;
     // ! alert mark when enemy first spots an agent
     if(th._nStatePrev!=='ALERT'&&th._nStatePrev!=='ATTACK'&&(th.nState==='ALERT'||th.nState==='ATTACK')) _spawnAlertMark(th);
+    if(th._nStatePrev!=='CAUTION'&&th.nState==='CAUTION') _spawnCautionMark(th);
     th._nStatePrev=th.nState;
     // Walk bob speed by rank
     var bobRate=th.rank==='champion'?2.8:th.rank==='elite'?3.6:th.rank==='warrior'?4.2:5.5;
@@ -10323,11 +10373,11 @@ function updateThreats(delta, t) {
         var _pa=Math.random()*Math.PI*2, _pr=1.5+Math.random()*3.5;
         th.patrolTarget=new THREE.Vector3(th.homePos.x+Math.cos(_pa)*_pr,0,th.homePos.z+Math.sin(_pa)*_pr);
       }
-      // MGS-style two-tier detection — checks both agents, reacts to nearest
-      if(tPos&&tDist<th.alertRange*0.72){
+      // Vision-cone detection — agents must enter forward arc or come very close
+      if(tPos&&_inVisionCone(th,tPos)&&tDist<th.alertRange*0.85){
         th.nState='ALERT';
         createBurst(th.group.position.clone().setY(2.2),0xff2200,7);
-      } else if(tPos&&tDist<th.alertRange*1.35){
+      } else if(tPos&&_inVisionCone(th,tPos)&&tDist<th.alertRange*1.4){
         th.nState='CURIOUS';
         if(!th._lastKnownPos) th._lastKnownPos=new THREE.Vector3();
         th._lastKnownPos.copy(tPos);
@@ -10339,13 +10389,16 @@ function updateThreats(delta, t) {
         th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);
         th.group.position.addScaledVector(_tv1,THREAT_SPEED*th.speedMult*0.38*delta);
         th.pos.copy(th.group.position);
+        // Footprint trail during patrol
+        if(!th._fpTimer) th._fpTimer=0; th._fpTimer-=delta;
+        if(th._fpTimer<=0){_spawnFootprint(th.group.position.x,th.group.position.z);th._fpTimer=1.1+Math.random()*0.5;}
       }
 
     } else if(th.nState==='CURIOUS'){
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.5;
       th.group.rotation.x=0.10;
       if(!tPos){ th.nState='PATROL'; th.group.rotation.x=0; }
-      else if(tDist<th.alertRange*0.72){
+      else if(_inVisionCone(th,tPos)&&tDist<th.alertRange*0.85){
         th.nState='ALERT'; th.group.rotation.x=0;
         createBurst(th.group.position.clone().setY(2.2),0xff2200,9);
         _d1Say('Incoming. Engaging.','chat',{lastEvent:'enemy spotted: '+th.type,question:'Short combat callout.'});
@@ -10368,11 +10421,34 @@ function updateThreats(delta, t) {
       th.group.rotation.y+=delta*(Math.sin(th.walkPhase*0.35)>0?0.85:-0.85);
       if(!th._searchTimer) th._searchTimer=3;
       th._searchTimer-=delta;
-      if(tPos&&tDist<th.alertRange*0.72){
+      if(tPos&&_inVisionCone(th,tPos)&&tDist<th.alertRange*0.85){
         th.nState='ALERT';
         createBurst(th.group.position.clone().setY(2.2),0xff2200,9);
       } else if(th._searchTimer<=0){
         th.nState='RETURN';
+      }
+
+    } else if(th.nState==='CAUTION'){
+      // Lost an alerted target — hunt last known position
+      th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.4;
+      th.group.rotation.x=0.12;
+      if(!th._cautionTimer) th._cautionTimer=5;
+      th._cautionTimer-=delta;
+      if(tPos&&_inVisionCone(th,tPos)&&tDist<th.alertRange*0.9){
+        th.nState='ALERT'; th.group.rotation.x=0;
+        createBurst(th.group.position.clone().setY(2.2),0xff2200,9);
+      } else if(th._cautionTimer<=0){
+        th.nState='RETURN'; th.group.rotation.x=0;
+      } else if(th._lastKnownPos){
+        _tv1.subVectors(th._lastKnownPos,th.group.position); _tv1.y=0;
+        if(_tv1.length()>0.6){
+          _tv1.normalize();
+          th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);
+          th.group.position.addScaledVector(_tv1,THREAT_SPEED*th.speedMult*0.30*delta);
+          th.pos.copy(th.group.position);
+        } else {
+          th.group.rotation.y+=delta*(Math.sin(th.walkPhase*0.4)>0?0.9:-0.9);
+        }
       }
 
     } else if(th.nState==='ALERT'){
@@ -10381,11 +10457,11 @@ function updateThreats(delta, t) {
       if(!tPos){ th.nState='RETURN'; th.group.rotation.x=0; }
       else if(tDist<1.6){ th.nState='ATTACK'; th.atkCooldown=th.atkRate*0.2; th.group.rotation.x=0; }
       else if(tDist>th.alertRange*2.5){
-        th.nState='SEARCH'; th._searchTimer=4+Math.random()*3;
+        th.nState='CAUTION'; th._cautionTimer=5+Math.random()*4;
         if(!th._lastKnownPos) th._lastKnownPos=new THREE.Vector3();
         th._lastKnownPos.copy(tPos);
         th.group.rotation.x=0;
-        createBurst(th.group.position.clone().setY(2.0),0xffaa00,5);
+        createBurst(th.group.position.clone().setY(2.0),0xffcc00,5);
       } else {
         _tv1.subVectors(tPos,th.group.position); _tv1.y=0; _tv1.normalize();
         th.group.rotation.y=Math.atan2(_tv1.x,_tv1.z);
@@ -10468,8 +10544,8 @@ function updateThreats(delta, t) {
 
     } else if(th.nState==='RETURN'){
       th.group.position.y=Math.abs(Math.sin(th.walkPhase))*bobH*0.5;
-      if(tPos&&tDist<th.alertRange*0.72){ th.nState='ALERT'; }
-      else if(tPos&&tDist<th.alertRange){ th.nState='CURIOUS'; if(!th._lastKnownPos)th._lastKnownPos=new THREE.Vector3(); th._lastKnownPos.copy(tPos); }
+      if(tPos&&_inVisionCone(th,tPos)&&tDist<th.alertRange*0.85){ th.nState='ALERT'; }
+      else if(tPos&&_inVisionCone(th,tPos)&&tDist<th.alertRange*1.1){ th.nState='CURIOUS'; if(!th._lastKnownPos)th._lastKnownPos=new THREE.Vector3(); th._lastKnownPos.copy(tPos); }
       th.group.rotation.x=0;
       if(th.weapon){th.weapon.rotation.x=0;th.weapon.rotation.z=0;}
       if(th.gRing) th.gRing.material.color.setHex(th.glowMat.color?th.glowMat.color.getHex():0xffffff);
@@ -10480,6 +10556,13 @@ function updateThreats(delta, t) {
         th.group.position.addScaledVector(_tv1,THREAT_SPEED*th.speedMult*0.45*delta);
         th.pos.copy(th.group.position);
       } else { th.nState='PATROL'; }
+    }
+    // Vision cone color by state
+    if(th._coneMat){
+      if(th.nState==='ATTACK'||th.nState==='ALERT'){th._coneMat.color.setHex(0xff3300);th._coneMat.opacity=0.28;}
+      else if(th.nState==='CAUTION'||th.nState==='CURIOUS'){th._coneMat.color.setHex(0xffcc00);th._coneMat.opacity=0.20;}
+      else if(th.nState==='SEARCH'){th._coneMat.color.setHex(0xffaa00);th._coneMat.opacity=0.16;}
+      else{th._coneMat.color.setHex(0xffee00);th._coneMat.opacity=0.09;}
     }
     // Special per-enemy behaviors
     _updateThreatBehavior(th,delta,t,dPos,dDist);
@@ -13367,6 +13450,7 @@ function animate() {
   _updateThoughtBubbles(delta);
   _updateAlertLevel();
   _updateAlertMarks(delta);
+  _tickFootprints(delta);
   _updateIntercept(delta);
   _updateDestinyTracker();
   if(_hasEliza) _updateElizaTracker();
