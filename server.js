@@ -17,7 +17,7 @@ var client = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── Holder verification ───────────────────────────────────────────────────
 var DESTINY_MINT  = '3AwkJnZL7xrf8ffUwEsSkKndQkPSj2vfR3CqvyFpk8UP';
-var MIN_TOKENS    = 10000;
+var MIN_TOKENS    = 50000;
 var SOLANA_RPC    = 'https://api.mainnet-beta.solana.com';
 
 var pendingNonces    = new Map(); // nonce → expiry timestamp
