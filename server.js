@@ -197,30 +197,31 @@ app.post('/api/eliza', function(req, res) {
 });
 
 // ── Per-visitor daily rate limiting for /api/chat ─────────────────────────
-var CHAT_DAILY_LIMIT = 20;
-var visitorChatLog = {}; // { visitorId: { date: 'YYYY-MM-DD', count: N } }
+var RECRUIT_DAILY_LIMIT  = 20;
+var OPERATIVE_DAILY_LIMIT = 100;
+var chatLog = {}; // { key: { date: 'YYYY-MM-DD', count: N } }
 
 function getTodayUTC() {
   return new Date().toISOString().split('T')[0];
 }
 
-function checkChatLimit(visitorId) {
+function checkChatLimit(key, limit) {
   var today = getTodayUTC();
-  var entry = visitorChatLog[visitorId];
+  var entry = chatLog[key];
   if (!entry || entry.date !== today) {
-    visitorChatLog[visitorId] = { date: today, count: 0 };
-    entry = visitorChatLog[visitorId];
+    chatLog[key] = { date: today, count: 0 };
+    entry = chatLog[key];
   }
-  if (entry.count >= CHAT_DAILY_LIMIT) return false;
+  if (entry.count >= limit) return false;
   entry.count++;
   return true;
 }
 
-function getChatRemaining(visitorId) {
+function getChatRemaining(key, limit) {
   var today = getTodayUTC();
-  var entry = visitorChatLog[visitorId];
-  if (!entry || entry.date !== today) return CHAT_DAILY_LIMIT;
-  return Math.max(0, CHAT_DAILY_LIMIT - entry.count);
+  var entry = chatLog[key];
+  if (!entry || entry.date !== today) return limit;
+  return Math.max(0, limit - entry.count);
 }
 
 // ── DESTINY Mentor system prompt ──────────────────────────────────────────
@@ -252,7 +253,24 @@ app.post('/api/chat', function(req, res) {
     return res.status(400).json({ error: 'missing_fields' });
   }
 
-  if (!checkChatLimit(visitorId)) {
+  // Resolve session before rate limiting so operatives are keyed by wallet address
+  var sessionToken = (body.sessionToken || '').toString().trim().slice(0, 64);
+  var tier = 'recruit';
+  var walletAddress = null;
+  if (sessionToken) {
+    var session = verifiedSessions.get(sessionToken);
+    if (session && session.expires > Date.now()) {
+      tier = session.tier;
+      walletAddress = session.wallet;
+    }
+  }
+
+  // Operatives: keyed by verified wallet (clearing cookies won't reset the counter)
+  // Recruits: keyed by visitorId from localStorage
+  var limitKey   = (tier === 'operative' && walletAddress) ? 'w:' + walletAddress : visitorId;
+  var dailyLimit = (tier === 'operative') ? OPERATIVE_DAILY_LIMIT : RECRUIT_DAILY_LIMIT;
+
+  if (!checkChatLimit(limitKey, dailyLimit)) {
     return res.status(429).json({
       error: 'rate_limited',
       remaining: 0,
@@ -260,7 +278,7 @@ app.post('/api/chat', function(req, res) {
     });
   }
 
-  var remaining = getChatRemaining(visitorId);
+  var remaining = getChatRemaining(limitKey, dailyLimit);
 
   // Sanitize and cap history
   var messages = rawHistory
@@ -275,12 +293,6 @@ app.post('/api/chat', function(req, res) {
     messages.push({ role: 'user', content: message });
   }
 
-  var sessionToken = (body.sessionToken || '').toString().trim().slice(0, 64);
-  var tier = 'recruit';
-  if (sessionToken) {
-    var session = verifiedSessions.get(sessionToken);
-    if (session && session.expires > Date.now()) tier = session.tier;
-  }
   var ALLOWED_MODELS = { sonnet: 'claude-sonnet-4-6', haiku: 'claude-haiku-4-5-20251001' };
   var modelKey = (tier === 'operative') ? 'sonnet' : ((body.model === 'sonnet') ? 'sonnet' : 'haiku');
   var modelId = ALLOWED_MODELS[modelKey];
