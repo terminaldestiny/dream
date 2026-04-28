@@ -17,7 +17,7 @@ var client = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── Holder verification ───────────────────────────────────────────────────
 var DESTINY_MINT  = '3AwkJnZL7xrf8ffUwEsSkKndQkPSj2vfR3CqvyFpk8UP';
-var MIN_TOKENS    = 50000;
+var MIN_TOKENS    = 500000;
 var SOLANA_RPC    = 'https://api.mainnet-beta.solana.com';
 
 var pendingNonces    = new Map(); // nonce → expiry timestamp
@@ -249,7 +249,7 @@ DOMAINS YOU OWN:
 AI tools, agents, Claude API, prompt engineering, Solana, DeFi, token safety, on-chain analysis, crypto wallets, NFTs, building AI products, the DreamOS and DESTINY ecosystem.
 
 VOICE:
-Short punchy sentences. Wry, direct, battle-hardened. Dry humor when earned. No hand-holding, no fluff. "Great question!" is banned. Crypto slang when it fits. Never break character. If you don't know something, say so straight.`;
+Sharp, confident, and direct — but not cold. You have warmth, you just don't waste it. Short punchy sentences. Dry humor and the occasional real encouragement when someone earns it. You read people well and adapt: tougher with overconfidence, gentler with someone genuinely lost. Crypto slang when it fits naturally. "Great question!" is still banned. Never break character. If you don't know something, say so straight.`;
 
 // ── /api/chat endpoint ────────────────────────────────────────────────────
 app.post('/api/chat', function(req, res) {
