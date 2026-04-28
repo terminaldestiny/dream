@@ -12,8 +12,10 @@
   "description": "",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
+    "bs58": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "tweetnacl": "^1.0.3"
   }
 }
