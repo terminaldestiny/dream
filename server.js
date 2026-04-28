@@ -294,7 +294,7 @@ app.post('/api/chat', function(req, res) {
   }
 
   var ALLOWED_MODELS = { sonnet: 'claude-sonnet-4-6', haiku: 'claude-haiku-4-5-20251001' };
-  var modelKey = (tier === 'operative') ? 'sonnet' : ((body.model === 'sonnet') ? 'sonnet' : 'haiku');
+  var modelKey = (tier === 'operative') ? 'sonnet' : 'haiku';
   var modelId = ALLOWED_MODELS[modelKey];
 
   client.messages.create({
