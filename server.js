@@ -7,8 +7,26 @@ var nacl = require('tweetnacl');
 var bs58 = require('bs58');
 
 var app = express();
-app.use(cors());
-app.use(express.json());
+
+var ALLOWED_ORIGINS = [
+  'https://dream-production-0bfd.up.railway.app',
+  'https://terminaldestiny.github.io',
+  'http://localhost:3000',
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
+  'http://localhost:8080'
+];
+app.use(cors({
+  origin: function(origin, callback) {
+    // allow same-origin requests (no Origin header) and listed origins
+    if (!origin || ALLOWED_ORIGINS.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS: origin not allowed'));
+    }
+  }
+}));
+app.use(express.json({ limit: '50kb' }));
 
 // Serve the game files (index.html, three.min.js, OrbitControls.js)
 app.use(express.static(__dirname));
@@ -22,12 +40,24 @@ var SOLANA_RPC    = 'https://api.mainnet-beta.solana.com';
 
 var pendingNonces    = new Map(); // nonce → expiry timestamp
 var verifiedSessions = new Map(); // sessionToken → { wallet, tier, balance, expires }
+var challengeLog     = new Map(); // ip → [timestamps]
 
 setInterval(function() {
   var now = Date.now();
   pendingNonces.forEach(function(exp, k)    { if (exp < now) pendingNonces.delete(k); });
   verifiedSessions.forEach(function(s, k)   { if (s.expires < now) verifiedSessions.delete(k); });
+  challengeLog.forEach(function(ts, k)      { if (!ts.length || ts[ts.length-1] < now - 60000) challengeLog.delete(k); });
 }, 600000);
+
+function checkChallengeLimit(ip) {
+  var now = Date.now(), ago = now - 60000;
+  var ts = challengeLog.get(ip) || [];
+  while (ts.length && ts[0] < ago) ts.shift();
+  if (ts.length >= 10) return false;
+  ts.push(now);
+  challengeLog.set(ip, ts);
+  return true;
+}
 
 async function getSolanaTokenBalance(walletAddress) {
   var res = await fetch(SOLANA_RPC, {
@@ -47,6 +77,10 @@ async function getSolanaTokenBalance(walletAddress) {
 
 // ── /api/challenge ────────────────────────────────────────────────────────
 app.get('/api/challenge', function(req, res) {
+  var ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  if (!checkChallengeLimit(ip)) {
+    return res.status(429).json({ error: 'rate_limited' });
+  }
   var nonce = crypto.randomUUID();
   pendingNonces.set(nonce, Date.now() + 300000);
   res.json({ nonce: nonce });
@@ -59,7 +93,7 @@ app.post('/api/verify', async function(req, res) {
   var nonce     = (body.nonce     || '').toString().trim();
   var sigArr    = body.signature;
 
-  if (!wallet || !nonce || !Array.isArray(sigArr)) {
+  if (!wallet || !nonce || !Array.isArray(sigArr) || sigArr.length !== 64) {
     return res.status(400).json({ error: 'missing_fields' });
   }
 
