@@ -177,8 +177,11 @@ app.post('/api/chat', function(req, res) {
     messages.push({ role: 'user', content: message });
   }
 
+  var ALLOWED_MODELS = { sonnet: 'claude-sonnet-4-6', haiku: 'claude-haiku-4-5-20251001' };
+  var modelId = ALLOWED_MODELS[body.model] || 'claude-haiku-4-5-20251001';
+
   client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: modelId,
     max_tokens: 300,
     system: DESTINY_CHAT_PROMPT,
     messages: messages
