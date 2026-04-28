@@ -187,7 +187,7 @@ app.post('/api/chat', function(req, res) {
     messages: messages
   }).then(function(msg) {
     var text = (msg.content && msg.content[0] && msg.content[0].text) ? msg.content[0].text.trim() : 'Signal unclear.';
-    res.json({ response: text, remaining: remaining });
+    res.json({ response: text, remaining: remaining, model: modelKey });
   }).catch(function(err) {
     console.error('Chat API error:', err.message || err);
     res.status(500).json({ error: 'api_error', response: 'Static on the line. Try again.' });
