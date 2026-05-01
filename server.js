@@ -235,7 +235,7 @@ app.post('/api/eliza', function(req, res) {
 
 // ── Per-visitor daily rate limiting for /api/chat ─────────────────────────
 var RECRUIT_DAILY_LIMIT  = 20;
-var OPERATIVE_DAILY_LIMIT = 100;
+var OPERATIVE_DAILY_LIMIT = 30;
 var chatLog = {}; // { key: { date: 'YYYY-MM-DD', count: N } }
 
 function getTodayUTC() {
@@ -418,3 +418,4 @@ app.listen(PORT, function() {
   console.log('Proxy running on http://localhost:' + PORT);
   console.log('API key:', process.env.ANTHROPIC_API_KEY === 'placeholder' ? 'PLACEHOLDER' : 'SET');
 });
+
