@@ -10,6 +10,8 @@ var app = express();
 
 var ALLOWED_ORIGINS = [
   'https://dream-production-0bfd.up.railway.app',
+  'https://terminaldestiny.com',
+  'https://www.terminaldestiny.com',
   'https://terminaldestiny.github.io',
   'http://localhost:3000',
   'http://localhost:5500',
