@@ -391,7 +391,7 @@ app.post('/api/chat', function(req, res) {
 
   client.messages.create({
     model: modelId,
-    max_tokens: 300,
+    max_tokens: (modelKey === 'sonnet') ? 500 : 300,
     system: DESTINY_CHAT_PROMPT,
     messages: messages
   }).then(function(msg) {
